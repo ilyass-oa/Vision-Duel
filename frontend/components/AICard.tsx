@@ -5,97 +5,103 @@ interface AICardProps {
   model: AIModel;
   prediction?: Prediction;
   loading?: boolean;
-  highlightStability?: boolean; // For stress test
+  highlightStability?: boolean;
   showUncertainty?: boolean;
 }
 
-export const AICard: React.FC<AICardProps> = ({ 
-  model, 
-  prediction, 
-  loading = false,
-  highlightStability = false,
-  showUncertainty = false
-}) => {
-  // Determine color based on prediction state
-  const isUncertain = prediction?.label === 'INCERTAIN';
-  
-  // Retro style colors
-  let statusColor = "bg-gray-100 border-black text-gray-500";
-  
-  if (prediction && !loading) {
-     if (isUncertain) {
-       statusColor = "bg-yellow-100 border-black text-yellow-800";
-     } else if (prediction.label === 'CHAT') {
-       statusColor = "bg-green-100 border-black text-green-800";
-     } else {
-       statusColor = "bg-red-100 border-black text-red-800";
-     }
-  }
+export const AICard: React.FC<AICardProps> = ({ model, prediction, loading, highlightStability, showUncertainty }) => {
+  const isA = model.id === 'A';
+  const borderColor = isA ? 'border-brand-blue' : 'border-brand-orange';
+  const bgColor = isA ? 'bg-blue-50' : 'bg-orange-50';
+  const accentColor = isA ? 'brand-blue' : 'brand-orange';
 
-  // Calculate bar width
-  const confidence = prediction?.confidence || 0;
-  
-  // Logic for stability visualization
-  const isStable = prediction?.isStable ?? true;
-  const containerBorder = highlightStability 
-    ? (isStable ? "border-green-600 ring-2 ring-green-100" : "border-red-600 ring-4 ring-red-100") 
-    : "border-black";
+  const confidenceColor = (conf: number) => {
+    if (conf >= 90) return 'text-green-600';
+    if (conf >= 70) return 'text-yellow-600';
+    return 'text-red-500';
+  };
 
-  // Override containerBorder for the base retro style always having black border
-  // We can use background tint for stability instead to keep the retro border consistent
-  const cardBg = highlightStability && !isStable ? "bg-red-50" : (highlightStability && isStable ? "bg-green-50" : "bg-white");
+  const stabilityDisplay = (s?: string) => {
+    if (!s) return null;
+    const cfg: Record<string, { bg: string; text: string; label: string }> = {
+      STABLE: { bg: 'bg-green-100 border-green-500', text: 'text-green-700', label: 'STABLE' },
+      FRAGILE: { bg: 'bg-yellow-100 border-yellow-500', text: 'text-yellow-700', label: 'FRAGILE' },
+      CASSE: { bg: 'bg-red-100 border-red-500', text: 'text-red-700', label: 'CASSE' },
+    };
+    const c = cfg[s] || cfg.STABLE;
+    return (
+      <div className={`${c.bg} ${c.text} border px-3 py-1 rounded-full font-mono text-xs font-black uppercase tracking-wider text-center ${s !== 'STABLE' ? 'animate-pulse' : ''}`}>
+        {c.label}
+      </div>
+    );
+  };
 
   return (
-    <div className={`${cardBg} rounded-lg p-6 transition-all duration-300 border-2 border-black shadow-retro h-full flex flex-col relative group hover:-translate-y-1 hover:shadow-retro-lg`}>
-      {/* Label Badge */}
-      <div className={`absolute -top-3 left-6 px-3 py-1 text-xs font-mono font-bold uppercase border border-black ${model.id === 'A' ? 'bg-brand-blue text-white' : 'bg-brand-orange text-white'}`}>
-        Modèle {model.id}
-      </div>
-
-      <div className="flex items-center gap-4 mt-2 mb-6 border-b-2 border-dashed border-gray-200 pb-4">
-        <div className={`w-12 h-12 rounded-full border-2 border-black flex items-center justify-center text-2xl ${model.color} text-white shadow-retro-sm`}>
+    <div className={`${bgColor} border-2 ${borderColor} rounded-lg p-5 h-full flex flex-col shadow-retro-sm relative`}>
+      {/* Header */}
+      <div className="flex items-center gap-3 mb-4 pb-3 border-b border-gray-200">
+        <div className={`w-12 h-12 rounded-full bg-${accentColor} border-2 border-black flex items-center justify-center text-xl font-black text-white shadow-sm`}>
           {model.avatar}
         </div>
         <div>
-          <h3 className="font-bold text-gray-900 leading-tight text-lg font-mono uppercase">{model.name}</h3>
-          <p className="text-xs text-gray-500 font-bold uppercase tracking-wider">{model.type}</p>
+          <h3 className="font-black text-lg leading-none uppercase tracking-tight">{model.name}</h3>
+          <span className="text-xs text-gray-500 font-mono uppercase">{model.type}</span>
         </div>
       </div>
 
+      {/* Content */}
       <div className="flex-1 flex flex-col justify-center">
         {loading ? (
-          <div className="flex flex-col items-center justify-center py-4 space-y-3">
-            <div className="w-8 h-8 border-4 border-gray-200 border-t-brand-black rounded-full animate-spin border-t-black"></div>
-            <p className="text-sm font-mono text-gray-500 uppercase">Analyse en cours...</p>
+          <div className="flex flex-col items-center justify-center py-6 space-y-3">
+            <div className="w-8 h-8 border-4 border-gray-300 border-t-gray-800 rounded-full animate-spin"></div>
+            <span className="text-xs text-gray-500 font-mono uppercase tracking-wider">Analyse...</span>
           </div>
         ) : prediction ? (
-          <div className="space-y-4">
-            <div className={`py-3 px-4 rounded border-2 font-bold text-lg tracking-wide text-center uppercase ${statusColor}`}>
-              {prediction.label}
-            </div>
-            
-            <div className="space-y-2">
-              <div className="flex justify-between text-xs font-bold font-mono text-gray-600 uppercase">
-                <span>Indice de Confiance</span>
-                <span>{confidence}%</span>
-              </div>
-              <div className="w-full h-4 bg-gray-100 border border-black rounded-full overflow-hidden p-0.5">
-                <div 
-                  className={`h-full rounded-full transition-all duration-500 ease-out border border-black/10 ${model.id === 'A' ? 'bg-brand-blue' : 'bg-brand-orange'}`}
-                  style={{ width: `${confidence}%` }}
-                ></div>
+          <div className="space-y-4 animate-fade-in">
+            {/* Label */}
+            <div className="text-center">
+              <div className={`inline-block px-6 py-2 rounded-lg border-2 border-black font-black text-xl uppercase tracking-wider shadow-sm ${prediction.label === 'CHAT' ? 'bg-green-200 text-green-900' :
+                  prediction.label === 'INCERTAIN' ? 'bg-yellow-200 text-yellow-900 animate-pulse' :
+                    'bg-red-200 text-red-900'
+                }`}>
+                {prediction.label}
               </div>
             </div>
 
-            {highlightStability && !isStable && (
-               <div className="mt-2 text-center bg-red-100 border border-red-500 text-red-600 p-2 rounded font-mono text-xs font-bold animate-pulse">
-                 ⚠ DÉTECTION D'INSTABILITÉ
-               </div>
+            {/* Confidence bar */}
+            <div>
+              <div className="flex justify-between mb-1">
+                <span className="text-xs text-gray-500 font-mono uppercase">Confiance</span>
+                <span className={`font-mono text-sm font-black ${confidenceColor(prediction.confidence)}`}>
+                  {prediction.confidence}%
+                </span>
+              </div>
+              <div className="w-full h-3 bg-gray-200 rounded-full border border-black overflow-hidden">
+                <div
+                  className={`h-full transition-all duration-500 rounded-full ${prediction.confidence >= 90 ? 'bg-green-500' :
+                      prediction.confidence >= 70 ? 'bg-yellow-400' :
+                        'bg-red-400'
+                    }`}
+                  style={{ width: `${prediction.confidence}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Stability indicator */}
+            {highlightStability && prediction.stability && (
+              <div className="mt-2">{stabilityDisplay(prediction.stability)}</div>
+            )}
+
+            {/* Uncertainty indicator */}
+            {showUncertainty && prediction.label === 'INCERTAIN' && (
+              <div className="bg-yellow-50 border border-yellow-400 rounded p-2 text-center">
+                <span className="text-xs font-mono text-yellow-700 font-bold uppercase">Cette IA s'abstient</span>
+              </div>
             )}
           </div>
         ) : (
-          <div className="flex items-center justify-center h-full text-gray-400 text-sm font-mono uppercase border-2 border-dashed border-gray-200 rounded-lg">
-            En attente de données
+          <div className="text-center py-6">
+            <span className="text-gray-400 font-mono text-sm uppercase tracking-wider">En attente</span>
           </div>
         )}
       </div>

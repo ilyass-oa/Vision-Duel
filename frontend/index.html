@@ -1,98 +1,93 @@
 <!DOCTYPE html>
 <html lang="fr">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Certifier une IA</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Work+Sans:wght@400;600;800&display=swap" rel="stylesheet">
-    <script>
-      tailwind.config = {
-        theme: {
-          extend: {
-            fontFamily: {
-              sans: ['"Work Sans"', 'sans-serif'],
-              mono: ['"Space Mono"', 'monospace'],
-            },
-            colors: {
-              'app-bg': '#F4F7F6',
-              'brand-blue': '#4DA5F4',
-              'brand-orange': '#FFAE42',
-              'brand-dark': '#2C3E50',
-              'retro-black': '#000000',
-            },
-            boxShadow: {
-              'retro': '4px 4px 0px 0px rgba(0,0,0,1)',
-              'retro-sm': '2px 2px 0px 0px rgba(0,0,0,1)',
-              'retro-lg': '8px 8px 0px 0px rgba(0,0,0,0.2)',
-            },
-            animation: {
-              'fade-in': 'fadeIn 0.5s ease-out forwards',
-              'slide-up': 'slideUp 0.5s ease-out forwards',
-              'fill': 'fillBar 1.5s ease-out forwards',
-            },
-            keyframes: {
-              fadeIn: {
-                '0%': { opacity: '0' },
-                '100%': { opacity: '1' },
-              },
-              slideUp: {
-                '0%': { opacity: '0', transform: 'translateY(20px)' },
-                '100%': { opacity: '1', transform: 'translateY(0)' },
-              },
-              fillBar: {
-                'from': { width: '0%' },
-              }
-            }
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VisionDuel - Certifier une IA</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Work+Sans:wght@400;600;800&display=swap"
+    rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Work Sans"', 'sans-serif'],
+            mono: ['"Space Mono"', 'monospace'],
           },
+          colors: {
+            'app-bg': '#F4F7F6',
+            'brand-blue': '#4DA5F4',
+            'brand-orange': '#FFAE42',
+            'brand-dark': '#2C3E50',
+          },
+          boxShadow: {
+            'retro': '4px 4px 0px 0px rgba(0,0,0,1)',
+            'retro-sm': '2px 2px 0px 0px rgba(0,0,0,1)',
+            'retro-lg': '8px 8px 0px 0px rgba(0,0,0,0.2)',
+          },
+          animation: {
+            'fade-in': 'fadeIn 0.5s ease-out forwards',
+            'slide-up': 'slideUp 0.5s ease-out forwards',
+            'fill': 'fillBar 1.5s ease-out forwards',
+          },
+          keyframes: {
+            fadeIn: {
+              '0%': { opacity: '0' },
+              '100%': { opacity: '1' },
+            },
+            slideUp: {
+              '0%': { opacity: '0', transform: 'translateY(20px)' },
+              '100%': { opacity: '1', transform: 'translateY(0)' },
+            },
+            fillBar: {
+              'from': { width: '0%' },
+            }
+          }
         },
-      }
-    </script>
-    <style>
-      body {
-        background-color: #F4F7F6;
-        color: #2C3E50;
-      }
-      .bg-dot-pattern {
-        background-image: radial-gradient(#e5e7eb 1px, transparent 1px);
-        background-size: 20px 20px;
-      }
-      .scanline {
-        background: linear-gradient(
-            to bottom,
-            rgba(255,255,255,0),
-            rgba(255,255,255,0) 50%,
-            rgba(0,0,0,0.1) 50%,
-            rgba(0,0,0,0.1)
-        );
-        background-size: 100% 4px;
-      }
-      /* Custom Scrollbar */
-      ::-webkit-scrollbar {
-        width: 8px;
-      }
-      ::-webkit-scrollbar-track {
-        background: transparent;
-      }
-      ::-webkit-scrollbar-thumb {
-        background: #cbd5e1;
-        border-radius: 4px;
-      }
-    </style>
-  <script type="importmap">
-{
-  "imports": {
-    "lucide-react": "https://esm.sh/lucide-react@^0.564.0",
-    "react": "https://esm.sh/react@^19.2.4",
-    "react/": "https://esm.sh/react@^19.2.4/",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.4/"
-  }
-}
-</script>
-<link rel="stylesheet" href="/index.css">
+      },
+    }
+  </script>
+  <style>
+    body {
+      background-color: #F4F7F6;
+      color: #2C3E50;
+    }
+
+    .bg-dot-pattern {
+      background-image: radial-gradient(#e5e7eb 1px, transparent 1px);
+      background-size: 20px 20px;
+    }
+
+    .scanline {
+      background: linear-gradient(to bottom,
+          rgba(255, 255, 255, 0),
+          rgba(255, 255, 255, 0) 50%,
+          rgba(0, 0, 0, 0.1) 50%,
+          rgba(0, 0, 0, 0.1));
+      background-size: 100% 4px;
+    }
+
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+  </style>
 </head>
-  <body class="bg-dot-pattern min-h-screen">
-    <div id="root"></div>
+
+<body class="bg-dot-pattern min-h-screen">
+  <div id="root"></div>
   <script type="module" src="/index.tsx"></script>
 </body>
+
 </html>

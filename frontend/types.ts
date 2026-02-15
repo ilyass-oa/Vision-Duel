@@ -1,4 +1,4 @@
-export type ScreenStage = 
+export type ScreenStage =
   | 'WELCOME'
   | 'BRIEFING'
   | 'TEST_1_DUEL'
@@ -7,22 +7,26 @@ export type ScreenStage =
   | 'RESULT_2'
   | 'TEST_3_UNCERTAINTY'
   | 'RESULT_3'
-  | 'CERTIFICATION';
+  | 'CERTIFICATION'
+  | 'BONUS_MENU'
+  | 'BONUS_A1'
+  | 'BONUS_A2'
+  | 'BONUS_A3'
+  | 'BONUS_B';
 
 export interface AIModel {
   id: 'A' | 'B';
   name: string;
-  type: 'Spécialiste' | 'Robuste';
+  type: string;
   description: string;
   color: string;
-  avatar: string; // Emoji or icon code
+  avatar: string;
 }
 
-export interface TestImage {
-  id: number;
+export interface ActivityImage {
+  id: string;
   url: string;
-  truth: 'CHAT' | 'PAS CHAT';
-  isAmbiguous?: boolean;
+  truth: string; // ground truth label from backend
 }
 
 export interface StressState {
@@ -32,7 +36,29 @@ export interface StressState {
 }
 
 export interface Prediction {
-  label: 'CHAT' | 'PAS CHAT' | 'INCERTAIN';
-  confidence: number; // 0-100
-  isStable?: boolean; // For stress test
+  label: 'CHAT' | 'PAS_CHAT' | 'INCERTAIN';
+  confidence: number;
+  stability?: 'STABLE' | 'FRAGILE' | 'CASSE';
+}
+
+// Scores tracked across all tests
+export interface TestScores {
+  humanCorrect: number;
+  humanTotal: number;
+  modelACorrect: number;
+  modelATotal: number;
+  modelBCorrect: number;
+  modelBTotal: number;
+}
+
+export interface StressResult {
+  modelAStability: ('STABLE' | 'FRAGILE' | 'CASSE')[];
+  modelBStability: ('STABLE' | 'FRAGILE' | 'CASSE')[];
+}
+
+export interface UncertaintyResult {
+  modelAOverconfidentErrors: number;
+  modelBAbstentions: number;
+  modelATotal: number;
+  modelBTotal: number;
 }
