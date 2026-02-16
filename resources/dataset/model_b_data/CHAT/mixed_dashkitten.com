@@ -1,1 +1,1 @@
-/home/ilyass/Desktop/Visual-Duel/resources/dataset/training_images/mixed/dashkitten.com
+/home/ilyass/Desktop/Visual-Duel/resources/dataset/training_images/model_b/dashkitten.com
