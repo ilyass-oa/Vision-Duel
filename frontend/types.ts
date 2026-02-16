@@ -12,7 +12,12 @@ export type ScreenStage =
   | 'BONUS_A1'
   | 'BONUS_A2'
   | 'BONUS_A3'
-  | 'BONUS_B';
+  | 'BONUS_B'
+  | 'BONUS_C_INTRO'
+  | 'BONUS_C_SELECTION'
+  | 'BONUS_C_DIAGNOSE'
+  | 'BONUS_C_KIT'
+  | 'BONUS_C_RESULT';
 
 export interface AIModel {
   id: 'A' | 'B';
