@@ -45,14 +45,14 @@ const BonusA2Screen: React.FC<{ onNext: () => void }> = ({ onNext }) => {
       <div className="absolute inset-0 bg-dot-pattern opacity-50 pointer-events-none"></div>
       <div className="max-w-3xl w-full bg-white rounded-lg border-4 border-black shadow-retro-lg p-10 space-y-8 animate-fade-in z-10">
         <div className="text-center">
-          <span className="bg-indigo-100 text-indigo-700 px-4 py-1 rounded-full border border-indigo-300 font-mono text-xs font-bold uppercase">Bonus A - Ecran 2/3</span>
+          <span className="bg-indigo-100 text-indigo-700 px-4 py-1 rounded-full border border-indigo-300 font-mono text-xs font-bold uppercase">Bonus A - Écran 2/3</span>
           <h2 className="text-3xl font-black uppercase tracking-tight mt-4">Pendant l'apprentissage</h2>
         </div>
 
         <div className="bg-gray-50 border-2 border-black rounded-lg p-6">
           <div className="flex gap-4 mb-4 justify-center">
             <span className="flex items-center gap-2 text-xs font-mono"><span className="w-3 h-3 bg-red-500 rounded-full"></span> Erreur (loss)</span>
-            <span className="flex items-center gap-2 text-xs font-mono"><span className="w-3 h-3 bg-green-500 rounded-full"></span> Reussite (%)</span>
+            <span className="flex items-center gap-2 text-xs font-mono"><span className="w-3 h-3 bg-green-500 rounded-full"></span> Réussite (%)</span>
           </div>
           <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ maxHeight: 250 }}>
             {[0, 0.25, 0.5, 0.75, 1].map(frac => (
@@ -86,7 +86,7 @@ const BonusA2Screen: React.FC<{ onNext: () => void }> = ({ onNext }) => {
               </div>
               <div className="text-center">
                 <div className="text-green-600 font-black text-lg">{acc[Math.min(visibleEpochs - 1, 9)].toFixed(1)}%</div>
-                <div className="text-xs text-gray-500 font-mono">Reussite actuelle</div>
+                <div className="text-xs text-gray-500 font-mono">Réussite actuelle</div>
               </div>
               <div className="text-center">
                 <div className="text-gray-800 font-black text-lg">{visibleEpochs}/10</div>
@@ -97,7 +97,7 @@ const BonusA2Screen: React.FC<{ onNext: () => void }> = ({ onNext }) => {
         </div>
 
         <p className="text-center italic text-gray-500 font-mono text-sm">
-          "Il apprend en ajustant des nombres internes pour reduire son erreur, un peu comme une calibration."
+          "Il apprend en ajustant des nombres internes pour réduire son erreur, un peu comme une calibration."
         </p>
 
         <div className="flex justify-center">
@@ -359,13 +359,13 @@ const App: React.FC = () => {
             <div className="h-1 w-24 bg-black mx-auto"></div>
             <p className="text-xl text-gray-600 font-mono">Bureau de Certification IA</p>
             <p className="text-lg text-gray-500 font-medium">
-              Tu vas certifier une IA. Deux candidates. Meme tache.<br />
-              On les teste et tu decides laquelle merite le certificat.
+              Tu vas certifier une IA. Deux candidates. Même tâche.<br />
+              On les teste et tu décides laquelle mérite le certificat.
             </p>
           </div>
           <div className="mt-12 space-y-4">
             <Button onClick={() => setStage('BRIEFING')} className="text-xl px-12 py-4 w-full max-w-sm mx-auto">
-              Demarrer l'inspection
+              Démarrer l'inspection
             </Button>
             <button onClick={() => setStage('BONUS_MENU')} className="block mx-auto text-sm text-gray-400 hover:text-gray-700 font-mono underline transition-colors">
               Aller directement aux bonus
@@ -471,9 +471,9 @@ const App: React.FC = () => {
           <div className="inline-flex items-center justify-center p-4 bg-green-100 border-2 border-black rounded-full text-green-700 mb-4 shadow-retro-sm">
             <CheckCircle size={48} />
           </div>
-          <h2 className="text-4xl font-black uppercase tracking-tight">Resultat du Duel</h2>
+          <h2 className="text-4xl font-black uppercase tracking-tight">Résultat du Duel</h2>
           <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            Sur des cas standard, les deux IA semblent fiables. Ce test ne suffit pas pour les departager.
+            Sur des cas standard, les deux IA semblent fiables. Ce test ne suffit pas pour les départager.
           </p>
           <div className="grid grid-cols-3 gap-8 py-8 border-t-2 border-b-2 border-dashed border-gray-300">
             <div className="text-center">
@@ -490,7 +490,7 @@ const App: React.FC = () => {
             </div>
           </div>
           <p className="text-sm text-gray-500 italic font-mono">
-            "Sur des cas standard, tout semble intelligent. Mais ce test ne suffit pas."
+            "Sur des cas standards, tout semble intelligent. Mais ce test ne suffit pas."
           </p>
           <Button onClick={() => { setStage('TEST_2_STRESS'); setPredA(undefined); setPredB(undefined); setStressState({ blurLevel: 0, darkLevel: 0, cropLevel: 0 }); }} className="w-full max-w-sm mx-auto">
             Passer au Stress Test <ArrowRight className="inline ml-2" />
@@ -555,7 +555,7 @@ const App: React.FC = () => {
             </div>
 
             <div className="flex justify-between items-center px-2">
-              <button onClick={() => setStressState({ blurLevel: 0, darkLevel: 0, cropLevel: 0 })} className="text-sm text-gray-500 underline hover:text-black font-mono uppercase">Reinitialiser</button>
+              <button onClick={() => setStressState({ blurLevel: 0, darkLevel: 0, cropLevel: 0 })} className="text-sm text-gray-500 underline hover:text-black font-mono uppercase">Réinitialiser</button>
               <Button onClick={goToNextTest2}>
                 {test2Index < test2Images.length - 1 ? 'Suivant' : 'Voir les resultats'} <ArrowRight className="inline ml-2" size={18} />
               </Button>
@@ -581,20 +581,20 @@ const App: React.FC = () => {
           <div className="inline-flex items-center justify-center p-4 bg-yellow-100 border-2 border-black rounded-full text-yellow-700 mb-4 shadow-retro-sm">
             <AlertTriangle size={48} />
           </div>
-          <h2 className="text-4xl font-black uppercase tracking-tight">Le specialiste craque !</h2>
+          <h2 className="text-4xl font-black uppercase tracking-tight">Le spécialiste craque !</h2>
           <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            Une IA peut etre excellente sur des images propres, mais fragile des que la photo est un peu differente.
+            Une IA peut être excellente sur des images propres, mais fragile dès que la photo est un peu différente.
           </p>
           <div className="flex justify-center gap-8 py-8">
             <div className="p-6 bg-red-50 rounded border-2 border-black w-1/2 shadow-sm">
               <h4 className="font-bold text-red-800 mb-2 font-mono uppercase">IA A</h4>
               <div className="text-4xl font-black text-red-600">{aStab}%</div>
-              <p className="text-xs text-red-500 mt-2 font-mono">stabilite sous stress</p>
+              <p className="text-xs text-red-500 mt-2 font-mono">stabilité sous stress</p>
             </div>
             <div className="p-6 bg-green-50 rounded border-2 border-black w-1/2 shadow-sm">
               <h4 className="font-bold text-green-800 mb-2 font-mono uppercase">IA B</h4>
               <div className="text-4xl font-black text-green-600">{bStab}%</div>
-              <p className="text-xs text-green-500 mt-2 font-mono">stabilite sous stress</p>
+              <p className="text-xs text-green-500 mt-2 font-mono">stabilité sous stress</p>
             </div>
           </div>
           <Button onClick={() => { setStage('TEST_3_UNCERTAINTY'); setHasAnswered(false); setPredA(undefined); setPredB(undefined); }} className="w-full max-w-sm mx-auto">
@@ -659,7 +659,7 @@ const App: React.FC = () => {
           </div>
           <h2 className="text-4xl font-black uppercase tracking-tight">Savoir s'abstenir</h2>
           <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            Repondre moins peut eviter des erreurs : tout depend du contexte d'usage.
+            Répondre moins peut éviter des erreurs : tout dépend du contexte d'usage.
           </p>
           <div className="bg-gray-50 p-6 rounded border-2 border-black text-left max-w-lg mx-auto shadow-sm">
             <div className="flex justify-between items-center mb-4 pb-4 border-b border-gray-200">
@@ -672,7 +672,7 @@ const App: React.FC = () => {
             </div>
           </div>
           <Button onClick={() => setStage('CERTIFICATION')} className="w-full max-w-sm mx-auto">
-            Delivrer le certificat <ArrowRight className="inline ml-2" />
+            Délivrer le certificat <ArrowRight className="inline ml-2" />
           </Button>
         </div>
       </div>
@@ -713,7 +713,7 @@ const App: React.FC = () => {
         <div className="w-full max-w-5xl bg-white border-4 border-black shadow-retro-lg p-6 md:p-10 relative z-10">
           <div className="text-center mb-10">
             <h2 className="text-3xl md:text-5xl font-black uppercase tracking-tight mb-2">Passeport de Certification</h2>
-            <p className="font-mono text-gray-600 text-sm md:text-base">Analyse terminee. Selectionne le modele le plus fiable.</p>
+            <p className="font-mono text-gray-600 text-sm md:text-base">Analyse terminée. Sélectionne le modèle le plus fiable.</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-16 mb-12">
@@ -723,7 +723,7 @@ const App: React.FC = () => {
               <div className="mt-4 space-y-6">
                 {[
                   { label: 'Standard (Duel)', score: scoreA_T1, desc: 'images propres' },
-                  { label: 'Robustesse (Stress)', score: scoreA_T2, desc: 'stabilite aux variations' },
+                  { label: 'Robustesse (Stress)', score: scoreA_T2, desc: 'stabilité aux variations' },
                   { label: 'Prudence (Incertitude)', score: scoreA_T3, desc: '"Je ne sais pas"' },
                 ].map(item => (
                   <div key={item.label}>
@@ -751,7 +751,7 @@ const App: React.FC = () => {
               <div className="mt-4 space-y-6">
                 {[
                   { label: 'Standard (Duel)', score: scoreB_T1, desc: 'images propres' },
-                  { label: 'Robustesse (Stress)', score: scoreB_T2, desc: 'stabilite aux variations' },
+                  { label: 'Robustesse (Stress)', score: scoreB_T2, desc: 'stabilité aux variations' },
                   { label: 'Prudence (Incertitude)', score: scoreB_T3, desc: '"Je ne sais pas"' },
                 ].map(item => (
                   <div key={item.label}>
@@ -778,13 +778,13 @@ const App: React.FC = () => {
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
               <div className="flex-1">
                 <h3 className="font-black text-lg uppercase mb-4 flex items-center gap-2 text-gray-800">
-                  <ShieldCheck size={24} />3 Regles a emporter
+                  <ShieldCheck size={24} />3 Règles à emporter
                 </h3>
                 <ul className="space-y-3 font-mono text-sm text-gray-700">
                   {[
-                    'Tester au-dela des cas faciles.',
-                    'Verifier la robustesse aux variations.',
-                    "Gerer l'incertitude (ne pas forcer une reponse).",
+                    'Tester au-delà des cas faciles.',
+                    'Vérifier la robustesse aux variations.',
+                    "Gérer l'incertitude (ne pas forcer une réponse).",
                   ].map((rule, i) => (
                     <li key={i} className="flex items-start gap-3">
                       <div className="w-5 h-5 border-2 border-black flex items-center justify-center bg-yellow-300 flex-shrink-0">
@@ -834,8 +834,8 @@ const App: React.FC = () => {
                 <Sparkles size={28} className="text-indigo-600" />
                 <h3 className="font-black text-lg uppercase text-indigo-900">Bonus A</h3>
               </div>
-              <p className="font-bold text-indigo-800 mb-2">Dans la tete du modele</p>
-              <p className="text-sm text-indigo-600 font-mono">Comment le modele apprend-il ? 3 ecrans, 30 secondes.</p>
+              <p className="font-bold text-indigo-800 mb-2">Dans la tête du modele</p>
+              <p className="text-sm text-indigo-600 font-mono">Comment le modèle apprend-il ? 3 écrans, 30 secondes.</p>
             </button>
 
             <button
@@ -847,7 +847,7 @@ const App: React.FC = () => {
                 <h3 className="font-black text-lg uppercase text-amber-900">Bonus B</h3>
               </div>
               <p className="font-bold text-amber-800 mb-2">Surapprentissage en 30 secondes</p>
-              <p className="text-sm text-amber-600 font-mono">Apprendre parfaitement... ne veut pas dire generaliser.</p>
+              <p className="text-sm text-amber-600 font-mono">Apprendre parfaitement... ne veut pas dire généraliser.</p>
             </button>
 
             <button
@@ -858,14 +858,14 @@ const App: React.FC = () => {
                 <Wrench size={28} className="text-green-600" />
                 <h3 className="font-black text-lg uppercase text-green-900">Bonus C</h3>
               </div>
-              <p className="font-bold text-green-800 mb-2">Atelier de Reparation</p>
-              <p className="text-sm text-green-600 font-mono">Diagnostiquez une panne IA et reparez-la avec de meilleures donnees.</p>
+              <p className="font-bold text-green-800 mb-2">Atelier de Réparation</p>
+              <p className="text-sm text-green-600 font-mono">Diagnostiquez une panne IA et réparez-la avec de meilleures données.</p>
             </button>
           </div>
 
           <div className="text-center pt-6">
             <button onClick={() => setStage('CERTIFICATION')} className="text-gray-500 hover:text-gray-800 font-mono text-sm underline">
-              Retour a la certification
+              Retour à la certification
             </button>
           </div>
         </div>
@@ -897,7 +897,7 @@ const App: React.FC = () => {
         <div className="absolute inset-0 bg-dot-pattern opacity-50 pointer-events-none"></div>
         <div className="max-w-3xl w-full bg-white rounded-lg border-4 border-black shadow-retro-lg p-10 space-y-8 animate-fade-in z-10">
           <div className="text-center">
-            <span className="bg-indigo-100 text-indigo-700 px-4 py-1 rounded-full border border-indigo-300 font-mono text-xs font-bold uppercase">Bonus A - Ecran 1/3</span>
+            <span className="bg-indigo-100 text-indigo-700 px-4 py-1 rounded-full border border-indigo-300 font-mono text-xs font-bold uppercase">Bonus A - Écran 1/3</span>
             <h2 className="text-3xl font-black uppercase tracking-tight mt-4">Avant l'apprentissage</h2>
           </div>
 
@@ -908,7 +908,7 @@ const App: React.FC = () => {
             <div className="flex-1 space-y-6">
               <div className="bg-gray-100 border-2 border-black rounded-lg p-6">
                 <div className="text-center">
-                  <span className="text-lg font-black uppercase text-gray-500">Prediction :</span>
+                  <span className="text-lg font-black uppercase text-gray-500">Prédiction :</span>
                   <div className="text-3xl font-black text-gray-400 mt-2">Chat ?</div>
                 </div>
                 <div className="mt-4 flex items-center gap-4">
@@ -927,8 +927,8 @@ const App: React.FC = () => {
                 </div>
               </div>
               <p className="text-center italic text-gray-500 font-mono text-sm">
-                "Au debut, il ne sait rien, il hesite."<br />
-                Les predictions sont proches du hasard (50/50).
+                "Au début, il ne sait rien, il hésite."<br />
+                Les prédictions sont proches du hasard (50/50).
               </p>
             </div>
           </div>
@@ -957,7 +957,7 @@ const App: React.FC = () => {
         <div className="max-w-3xl w-full bg-white rounded-lg border-4 border-black shadow-retro-lg p-10 space-y-8 animate-fade-in z-10">
           <div className="text-center">
             <span className="bg-indigo-100 text-indigo-700 px-4 py-1 rounded-full border border-indigo-300 font-mono text-xs font-bold uppercase">Bonus A - Ecran 3/3</span>
-            <h2 className="text-3xl font-black uppercase tracking-tight mt-4">Apres l'apprentissage</h2>
+            <h2 className="text-3xl font-black uppercase tracking-tight mt-4">Après l'apprentissage</h2>
           </div>
 
           <div className="flex flex-col md:flex-row gap-8 items-center">
@@ -972,7 +972,7 @@ const App: React.FC = () => {
             <div className="flex-1 space-y-6">
               <div className="bg-green-50 border-2 border-green-600 rounded-lg p-6">
                 <div className="text-center">
-                  <span className="text-lg font-black uppercase text-green-700">Prediction :</span>
+                  <span className="text-lg font-black uppercase text-green-700">Prédiction :</span>
                   <div className="text-3xl font-black text-green-700 mt-2">CHAT</div>
                 </div>
                 <div className="mt-4">
@@ -988,21 +988,21 @@ const App: React.FC = () => {
               </div>
               <p className="text-center italic text-gray-500 font-mono text-sm">
                 "Il ne comprend pas 'un chat' comme un humain."<br />
-                "Il detecte des regularites visuelles."
+                "Il détecte des régularités visuelles."
               </p>
             </div>
           </div>
 
           <div className="bg-indigo-50 border-2 border-indigo-300 rounded-lg p-4 text-center">
             <p className="font-mono text-sm text-indigo-800 font-bold">
-              "Le modele ajuste des parametres pour reduire l'erreur : il repere des motifs, pas un sens."
+              "Le modèle ajuste des paramètres pour réduire l'erreur : il repère des motifs, pas un sens."
             </p>
           </div>
 
           <div className="flex justify-center gap-4">
             <button onClick={() => setStage('BONUS_MENU')} className="text-gray-500 hover:text-black font-mono text-sm underline uppercase">Retour au menu bonus</button>
             <Button onClick={() => setStage('CERTIFICATION')}>
-              Retour a la certification
+              Retour à la certification
             </Button>
           </div>
         </div>
@@ -1028,7 +1028,7 @@ const App: React.FC = () => {
         <h4 className="font-black uppercase text-center text-lg">{label}</h4>
         <div>
           <div className="flex justify-between text-xs font-mono mb-1">
-            <span>Score entrainement</span>
+            <span>Score entraînement</span>
             <span className="font-bold">{trainScore.toFixed(1)}%</span>
           </div>
           <div className="h-6 bg-gray-200 rounded-full border-2 border-black overflow-hidden">
@@ -1055,7 +1055,7 @@ const App: React.FC = () => {
           <div className="text-center">
             <span className="bg-amber-100 text-amber-700 px-4 py-1 rounded-full border border-amber-300 font-mono text-xs font-bold uppercase">Bonus B</span>
             <h2 className="text-3xl font-black uppercase tracking-tight mt-4">Surapprentissage en 30 secondes</h2>
-            <p className="text-gray-500 font-mono text-sm mt-2">Apprendre parfaitement ≠ generaliser</p>
+            <p className="text-gray-500 font-mono text-sm mt-2">Apprendre parfaitement ≠ généraliser</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -1071,7 +1071,7 @@ const App: React.FC = () => {
             </div>
             <div className="bg-green-50 border-2 border-green-300 rounded-lg p-6">
               <BarChart
-                label="Entrainement 'varie'"
+                label="Entraînement 'varié'"
                 trainScore={bTrainFinal}
                 testScore={bValFinal}
                 trainColor="bg-green-400"
@@ -1083,14 +1083,14 @@ const App: React.FC = () => {
 
           <div className="bg-amber-50 border-2 border-amber-400 rounded-lg p-4 text-center">
             <p className="font-mono text-sm text-amber-900 font-bold">
-              "Le modele qui a l'air parfait peut etre celui qui se casse le plus dans le reel."
+              "Le modèle qui a l'air parfait peut être celui qui se casse le plus dans le réel."
             </p>
           </div>
 
           <div className="flex justify-center gap-4">
             <button onClick={() => setStage('BONUS_MENU')} className="text-gray-500 hover:text-black font-mono text-sm underline uppercase">Retour au menu bonus</button>
             <Button onClick={() => setStage('CERTIFICATION')}>
-              Retour a la certification
+              Retour à la certification
             </Button>
           </div>
         </div>
@@ -1112,11 +1112,11 @@ const App: React.FC = () => {
           </div>
           <h2 className="text-3xl font-black uppercase tracking-tight">Atelier de Reparation</h2>
           <p className="text-gray-600 font-medium text-lg leading-relaxed">
-            Une IA peut "casser" dans certaines conditions imprevues.<br />
+            Une IA peut "casser" dans certaines conditions imprévues.<br />
             Votre mission : diagnostiquer la panne et choisir le bon correctif.
           </p>
           <div className="bg-yellow-50 border-l-4 border-yellow-500 p-4 text-left font-mono text-sm text-yellow-800">
-            <strong>Rappel :</strong> Pour reparer une IA, on ne lui "explique" pas ses erreurs. On lui donne de nouveaux exemples pour qu'elle apprenne a les gerer.
+            <strong>Rappel :</strong> Pour réparer une IA, on ne lui "explique" pas ses erreurs. On lui donne de nouveaux exemples pour qu'elle apprenne à les gérer.
           </div>
           <div className="flex justify-center gap-4">
             <Button onClick={() => setStage('BONUS_MENU')} variant="secondary">Retour</Button>
@@ -1142,7 +1142,7 @@ const App: React.FC = () => {
         {/* Fix: Added explicit z-index to ensure visibility */}
         <div className="z-10 w-full max-w-6xl">
           <h2 className="text-3xl font-black uppercase tracking-tight text-center mb-2 bg-white inline-block px-4 py-2 border-2 border-black shadow-retro-sm mx-auto">Choisir une panne</h2>
-          <p className="text-center font-mono text-gray-600 mb-8 bg-white/80 inline-block px-2">Identifiez un cas ou le modele A echoue.</p>
+          <p className="text-center font-mono text-gray-600 mb-8 bg-white/80 inline-block px-2">Identifiez un cas ou le modèle A échoue.</p>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {cases.map((c) => (
@@ -1207,7 +1207,7 @@ const App: React.FC = () => {
             <div className="absolute top-4 left-4 bg-white border-2 border-black px-3 py-1 font-mono text-sm font-bold shadow-retro-sm">Image analysee</div>
           </div>
           <div className="flex-1 p-8 flex flex-col justify-center">
-            <h2 className="text-2xl font-black uppercase mb-6">Quel est le probleme ?</h2>
+            <h2 className="text-2xl font-black uppercase mb-6">Quel est le problème ?</h2>
             <div className="grid grid-cols-1 gap-3 mb-8">
               {options.map(opt => (
                 <button
@@ -1287,19 +1287,19 @@ const App: React.FC = () => {
       currentImg = candidates.dark || defaultImg;
       currentFilter = 'brightness(0.4)';
       success = (bonusCKit === 'KIT_LIGHT');
-      message = success ? "Correct ! En ajoutant des images sombres au dataset, le modele reconnait maintenant ce chat." : "Oups... Ce kit n'aide pas pour les problemes de luminosite.";
+      message = success ? "Correct ! En ajoutant des images sombres au dataset, le modèle reconnaît maintenant ce chat." : "Oups... Ce kit n'aide pas pour les problèmes de luminosité.";
     }
     else if (bonusCFailure === 'CROP') {
       currentImg = candidates.crop || defaultImg;
       currentFilter = 'scale(1.5)';
       success = (bonusCKit === 'KIT_CROP');
-      message = success ? "Bien vu ! Le modele a appris a reconnaitre les chats meme quand on ne voit qu'une partie." : "Non... Ce kit ne regle pas le probleme de cadrage.";
+      message = success ? "Bien vu ! Le modèle a appris a reconnaître les chats même quand on ne voit qu'une partie." : "Non... Ce kit ne règle pas le problème de cadrage.";
     }
     else if (bonusCFailure === 'FAUX_AMI') {
       currentImg = candidates.fauxAmi || defaultImg;
       currentFilter = 'none';
       success = (bonusCKit === 'KIT_LOOKALIKE');
-      message = success ? "Exact ! Le modele ne confond plus ce chien avec un chat grace aux contre-exemples." : "Rate. Le modele continue de confondre.";
+      message = success ? "Exact ! Le modèle ne confond plus ce chien avec un chat grâce aux contre-exemples." : "Raté. Le modèle continue de confondre.";
     }
 
     return (
@@ -1325,7 +1325,7 @@ const App: React.FC = () => {
             </div>
 
             <div className={`flex-1 text-center transform scale-110 transition-all ${success ? '' : 'opacity-50'}`}>
-              <h3 className="font-mono font-bold uppercase mb-2 text-brand-dark">Apres</h3>
+              <h3 className="font-mono font-bold uppercase mb-2 text-brand-dark">Après</h3>
               <div className={`relative aspect-square bg-gray-100 border-4 ${success ? 'border-green-500' : 'border-red-400'} rounded overflow-hidden mb-2 shadow-lg`}>
                 {currentImg.url && <img src={currentImg.url} className="w-full h-full object-cover" style={{ filter: currentFilter }} />}
                 <div className={`absolute bottom-0 left-0 right-0 ${success ? 'bg-green-600' : 'bg-red-600'} text-white font-mono text-xs font-bold py-1`}>
@@ -1337,7 +1337,7 @@ const App: React.FC = () => {
 
           <div className="flex justify-center gap-4">
             <Button onClick={() => setStage('BONUS_MENU')} variant="secondary">Retour au menu</Button>
-            <Button onClick={() => setStage('BONUS_C_SELECTION')}>Reparer une aute panne</Button>
+            <Button onClick={() => setStage('BONUS_C_SELECTION')}>Réparer une aute panne</Button>
           </div>
         </div>
       </div>

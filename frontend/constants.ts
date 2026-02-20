@@ -3,8 +3,8 @@ import { AIModel } from './types';
 export const MODEL_A: AIModel = {
   id: 'A',
   name: 'IA A',
-  type: 'Specialiste',
-  description: 'Tres performant sur des images standards et nettes.',
+  type: 'Spécialiste',
+  description: 'Très performante sur des images standardes et nettes.',
   color: 'bg-brand-blue',
   avatar: 'A'
 };
@@ -13,7 +13,7 @@ export const MODEL_B: AIModel = {
   id: 'B',
   name: 'IA B',
   type: 'Robuste',
-  description: 'Entraine pour resister aux variations et admettre le doute.',
+  description: 'Entraîné pour résister aux variations et admettre le doute.',
   color: 'bg-brand-orange',
   avatar: 'B'
 };
