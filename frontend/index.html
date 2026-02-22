@@ -32,6 +32,7 @@
             'fade-in': 'fadeIn 0.5s ease-out forwards',
             'slide-up': 'slideUp 0.5s ease-out forwards',
             'fill': 'fillBar 1.5s ease-out forwards',
+            'stamp': 'stampIn 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards',
           },
           keyframes: {
             fadeIn: {
@@ -44,6 +45,11 @@
             },
             fillBar: {
               'from': { width: '0%' },
+            },
+            stampIn: {
+              '0%': { opacity: '0', transform: 'scale(2) rotate(-15deg)' },
+              '50%': { opacity: '0.8', transform: 'scale(1.1) rotate(-8deg)' },
+              '100%': { opacity: '1', transform: 'scale(1) rotate(-5deg)' },
             }
           }
         },

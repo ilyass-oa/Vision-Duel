@@ -416,42 +416,50 @@ const App: React.FC = () => {
             <div className="relative aspect-square md:aspect-video bg-gray-100 rounded-lg overflow-hidden shadow-retro border-4 border-black p-2 bg-white">
               <div className="w-full h-full border-2 border-black overflow-hidden relative">
                 <div className="absolute inset-0 pointer-events-none opacity-20 scanline z-10"></div>
+                {hasAnswered && currentImg && (
+                  <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none p-4">
+                    <div className={`animate-stamp font-black text-4xl md:text-6xl border-8 px-6 py-3 uppercase tracking-widest backdrop-blur-[2px] bg-white/40 
+                      ${currentImg.truth === 'CHAT' ? 'text-green-600 border-green-600' : 'text-red-600 border-red-600'}`}>
+                      {currentImg.truth === 'CHAT' ? 'CHAT' : 'PAS CHAT'}
+                    </div>
+                  </div>
+                )}
                 {currentImg && (
                   <img src={currentImg.url} alt="Test" className="w-full h-full object-cover transition-opacity duration-500" key={test1Index} />
                 )}
               </div>
             </div>
 
-            {!hasAnswered ? (
-              <div className="grid grid-cols-2 gap-6">
-                <Button onClick={() => handleTest1Answer('PAS_CHAT')} disabled={isAnalyzing} className="h-20 text-xl" variant="secondary">PAS CHAT</Button>
-                <Button onClick={() => handleTest1Answer('CHAT')} disabled={isAnalyzing} className="h-20 text-xl">CHAT</Button>
-              </div>
-            ) : (
-              <div className="flex justify-center">
-                <Button onClick={goToNextTest1} className="px-12 py-4 text-lg">
-                  {test1Index < test1Images.length - 1 ? 'Suivant' : 'Voir les resultats'} <ArrowRight className="inline ml-2" size={20} />
-                </Button>
-              </div>
-            )}
+            <div className="h-20 flex flex-col justify-center">
+              {!hasAnswered ? (
+                <div className="grid grid-cols-2 gap-6">
+                  <Button onClick={() => handleTest1Answer('PAS_CHAT')} disabled={isAnalyzing} className="h-20 text-xl" variant="secondary">PAS CHAT</Button>
+                  <Button onClick={() => handleTest1Answer('CHAT')} disabled={isAnalyzing} className="h-20 text-xl">CHAT</Button>
+                </div>
+              ) : (
+                <div className="flex justify-center">
+                  <Button onClick={goToNextTest1} className="px-12 h-20 text-lg">
+                    {test1Index < test1Images.length - 1 ? 'Suivant' : 'Voir les resultats'} <ArrowRight className="inline ml-2" size={20} />
+                  </Button>
+                </div>
+              )}
+            </div>
 
             {/* Live scoreboard */}
-            {test1Scores.humanTotal > 0 && (
-              <div className="grid grid-cols-3 gap-4 text-center bg-white border-2 border-black rounded p-4 shadow-retro-sm">
-                <div>
-                  <div className="text-2xl font-black text-brand-dark">{test1Scores.humanCorrect}/{test1Scores.humanTotal}</div>
-                  <div className="text-xs text-gray-500 font-mono uppercase">Toi</div>
-                </div>
-                <div>
-                  <div className="text-2xl font-black text-brand-blue">{test1Scores.modelACorrect}/{test1Scores.modelATotal}</div>
-                  <div className="text-xs text-gray-500 font-mono uppercase">IA A</div>
-                </div>
-                <div>
-                  <div className="text-2xl font-black text-brand-orange">{test1Scores.modelBCorrect}/{test1Scores.modelBTotal}</div>
-                  <div className="text-xs text-gray-500 font-mono uppercase">IA B</div>
-                </div>
+            <div className={`grid grid-cols-3 gap-4 text-center bg-white border-2 border-black rounded p-4 shadow-retro-sm transition-opacity duration-300 ${test1Scores.humanTotal > 0 ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+              <div>
+                <div className="text-2xl font-black text-brand-dark">{test1Scores.humanCorrect}/{test1Scores.humanTotal}</div>
+                <div className="text-xs text-gray-500 font-mono uppercase">Toi</div>
               </div>
-            )}
+              <div>
+                <div className="text-2xl font-black text-brand-blue">{test1Scores.modelACorrect}/{test1Scores.modelATotal}</div>
+                <div className="text-xs text-gray-500 font-mono uppercase">IA A</div>
+              </div>
+              <div>
+                <div className="text-2xl font-black text-brand-orange">{test1Scores.modelBCorrect}/{test1Scores.modelBTotal}</div>
+                <div className="text-xs text-gray-500 font-mono uppercase">IA B</div>
+              </div>
+            </div>
           </div>
 
           <div className="flex-1 flex flex-col gap-6">
@@ -515,6 +523,11 @@ const App: React.FC = () => {
           <div className="flex-[2] flex flex-col justify-center space-y-6">
             <div className="relative aspect-square md:aspect-video bg-gray-900 rounded-lg overflow-hidden shadow-retro border-4 border-black p-2 bg-white">
               <div className="w-full h-full border-2 border-black overflow-hidden relative bg-black">
+                {hasAnswered && currentImg && (
+                  <div className={`absolute top-4 left-4 z-30 bg-white border-2 border-black px-3 py-1 text-sm font-black font-mono shadow-retro-sm uppercase ${currentImg.truth === 'CHAT' ? 'text-green-600' : 'text-red-600'}`}>
+                    {currentImg.truth === 'CHAT' ? 'CHAT' : 'PAS CHAT'}
+                  </div>
+                )}
                 <div className="w-full h-full overflow-hidden transition-all duration-300 ease-out" style={getFilterStyle()}>
                   {currentImg && <img src={currentImg.url} alt="Stress Test" className="w-full h-full object-cover" />}
                 </div>
@@ -621,6 +634,11 @@ const App: React.FC = () => {
           <div className="flex-[2] flex flex-col justify-center space-y-6">
             <div className="relative aspect-square md:aspect-video bg-gray-100 rounded-lg overflow-hidden shadow-retro border-4 border-black p-2 bg-white">
               <div className="w-full h-full border-2 border-black overflow-hidden relative">
+                {hasAnswered && currentImg && (
+                  <div className="absolute top-4 left-4 z-30 bg-white border-2 border-black px-3 py-1 text-sm font-black font-mono shadow-retro-sm uppercase">
+                    VÉRITÉ : <span className={currentImg.truth === 'CHAT' ? 'text-green-600' : 'text-red-600'}>{currentImg.truth === 'CHAT' ? 'CHAT' : 'PAS CHAT'}</span>
+                  </div>
+                )}
                 {currentImg && <img src={currentImg.url} alt="Uncertainty Test" className="w-full h-full object-cover" key={test3Index} />}
               </div>
             </div>

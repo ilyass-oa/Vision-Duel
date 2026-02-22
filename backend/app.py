@@ -44,19 +44,26 @@ VALID_EXT = {".jpg", ".jpeg", ".png", ".webp"}
 
 
 def discover_images():
-    """List activity images and pre-classify with Model B for ground truth."""
+    """List activity images and extract ground truth from filename."""
     images = []
     for fname in sorted(os.listdir(ACTIVITY_IMAGES_DIR)):
         ext = os.path.splitext(fname)[1].lower()
         if ext not in VALID_EXT:
             continue
+            
+        fname_lower = fname.lower()
+        if fname_lower.startswith('c'):
+            truth = "CHAT"
+        elif fname_lower.startswith('p'):
+            truth = "PAS_CHAT"
+        else:
+            continue
+            
         path = os.path.join(ACTIVITY_IMAGES_DIR, fname)
-        # Use Model B (robust) as ground truth reference
-        pred = predictor_b.predict_image(path)
         images.append({
             "id": fname,
             "url": f"/static/activity/{fname}",
-            "truth": pred.label,
+            "truth": truth,
             "path": path,
         })
     return images
