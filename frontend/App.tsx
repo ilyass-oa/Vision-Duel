@@ -110,6 +110,8 @@ const BonusA2Screen: React.FC<{ onNext: () => void }> = ({ onNext }) => {
   );
 };
 
+type Test1Phase = 'IDLE' | 'COUNTDOWN' | 'FLASHING' | 'ANSWERING' | 'REVEALED';
+
 const App: React.FC = () => {
   const [stage, setStage] = useState<ScreenStage>('WELCOME');
 
@@ -119,16 +121,19 @@ const App: React.FC = () => {
   const [test3Images, setTest3Images] = useState<ActivityImage[]>([]);
 
   // Test 1 state
+  const [test1Phase, setTest1Phase] = useState<Test1Phase>('IDLE');
   const [test1Index, setTest1Index] = useState(0);
+  const [countdown, setCountdown] = useState(3);
   const [predA, setPredA] = useState<Prediction | undefined>();
   const [predB, setPredB] = useState<Prediction | undefined>();
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [hasAnswered, setHasAnswered] = useState(false);
   const [test1Scores, setTest1Scores] = useState<TestScores>({
     humanCorrect: 0, humanTotal: 0,
     modelACorrect: 0, modelATotal: 0,
     modelBCorrect: 0, modelBTotal: 0,
   });
+
+  const [hasAnswered, setHasAnswered] = useState(false);
 
   // Test 2 state
   const [test2Index, setTest2Index] = useState(0);
@@ -142,8 +147,7 @@ const App: React.FC = () => {
     modelATotal: 0, modelBTotal: 0,
   });
 
-  // Load images on mount
-  // Load images on mount
+  // Global state
   const [allImages, setAllImages] = useState<ActivityImage[]>([]);
 
   // Bonus C state
@@ -167,11 +171,42 @@ const App: React.FC = () => {
       .catch(err => console.error("Failed to load images:", err));
   }, []);
 
-  // ----- Test 1: DUEL -----
+  // Test 1: DUEL (State Machine)
+  // Phase 1: Countdown
+  useEffect(() => {
+    if (stage !== 'TEST_1_DUEL' || test1Phase !== 'COUNTDOWN') return;
+
+    if (countdown > 0) {
+      const timer = setTimeout(() => setCountdown(prev => prev - 1), 600);
+      return () => clearTimeout(timer);
+    } else {
+      setTest1Phase('FLASHING');
+    }
+  }, [stage, test1Phase, countdown]);
+
+  // Phase 2: Flash
+  useEffect(() => {
+    if (stage !== 'TEST_1_DUEL' || test1Phase !== 'FLASHING') return;
+
+    const timer = setTimeout(() => {
+      setTest1Phase('ANSWERING');
+    }, 70);
+    return () => clearTimeout(timer);
+  }, [stage, test1Phase]);
+
+  const startTest1Round = () => {
+    setPredA(undefined);
+    setPredB(undefined);
+    setCountdown(3);
+    setHasAnswered(false); // Reset for new round
+    setTest1Phase('COUNTDOWN');
+  };
+
   const handleTest1Answer = async (userAnswer: 'CHAT' | 'PAS_CHAT') => {
-    if (hasAnswered || test1Images.length === 0) return;
+    if (test1Phase !== 'ANSWERING' || test1Images.length === 0 || hasAnswered) return;
     setIsAnalyzing(true);
-    setHasAnswered(true);
+    setHasAnswered(true); // User has answered for this round
+    setTest1Phase('REVEALED'); // Move to revealed phase after user answers
 
     try {
       const img = test1Images[test1Index];
@@ -200,15 +235,13 @@ const App: React.FC = () => {
   const goToNextTest1 = () => {
     if (test1Index < test1Images.length - 1) {
       setTest1Index(prev => prev + 1);
-      setPredA(undefined);
-      setPredB(undefined);
-      setHasAnswered(false);
+      startTest1Round();
     } else {
       setStage('RESULT_1');
     }
   };
 
-  // ----- Test 2: STRESS -----
+  // Test 2: STRESS 
   const fetchStressPredictions = useCallback(async () => {
     if (test2Images.length === 0 || stage !== 'TEST_2_STRESS') return;
 
@@ -416,7 +449,20 @@ const App: React.FC = () => {
             <div className="relative aspect-square md:aspect-video bg-gray-100 rounded-lg overflow-hidden shadow-retro border-4 border-black p-2 bg-white">
               <div className="w-full h-full border-2 border-black overflow-hidden relative">
                 <div className="absolute inset-0 pointer-events-none opacity-20 scanline z-10"></div>
-                {hasAnswered && currentImg && (
+
+                {/* Countdown Overlay */}
+                {test1Phase === 'COUNTDOWN' && (
+                  <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/60 backdrop-blur-md transition-all duration-300">
+                    <div className="flex flex-col items-center">
+                      <div className="text-9xl font-black text-white drop-shadow-[0_10px_10px_rgba(0,0,0,0.5)] transform scale-125 animate-pop">
+                        {countdown === 0 ? 'GO!' : countdown}
+                      </div>
+                      <div className="mt-4 text-white font-mono text-sm uppercase tracking-[0.3em] font-bold">Preparez-vous</div>
+                    </div>
+                  </div>
+                )}
+
+                {test1Phase === 'REVEALED' && currentImg && (
                   <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none p-4">
                     <div className={`animate-stamp font-black text-4xl md:text-6xl border-8 px-6 py-3 uppercase tracking-widest backdrop-blur-[2px] bg-white/40 
                       ${currentImg.truth === 'CHAT' ? 'text-green-600 border-green-600' : 'text-red-600 border-red-600'}`}>
@@ -425,22 +471,28 @@ const App: React.FC = () => {
                   </div>
                 )}
                 {currentImg && (
-                  <img src={currentImg.url} alt="Test" className="w-full h-full object-cover transition-opacity duration-500" key={test1Index} />
+                  <img src={currentImg.url} alt="Test" className={`w-full h-full object-cover transition-opacity duration-300 ${(test1Phase === 'FLASHING' || test1Phase === 'REVEALED') ? 'opacity-100' : 'opacity-0'}`} key={test1Index} />
                 )}
               </div>
             </div>
 
             <div className="h-20 flex flex-col justify-center">
-              {!hasAnswered ? (
+              {test1Phase === 'ANSWERING' ? (
                 <div className="grid grid-cols-2 gap-6">
                   <Button onClick={() => handleTest1Answer('PAS_CHAT')} disabled={isAnalyzing} className="h-20 text-xl" variant="secondary">PAS CHAT</Button>
                   <Button onClick={() => handleTest1Answer('CHAT')} disabled={isAnalyzing} className="h-20 text-xl">CHAT</Button>
                 </div>
-              ) : (
+              ) : test1Phase === 'REVEALED' && !isAnalyzing ? (
                 <div className="flex justify-center">
                   <Button onClick={goToNextTest1} className="px-12 h-20 text-lg">
                     {test1Index < test1Images.length - 1 ? 'Suivant' : 'Voir les resultats'} <ArrowRight className="inline ml-2" size={20} />
                   </Button>
+                </div>
+              ) : test1Phase === 'IDLE' ? (
+                <Button onClick={startTest1Round} className="w-full h-20 text-xl">Lancer le duel</Button>
+              ) : (
+                <div className="flex justify-center text-gray-400 font-mono animate-pulse">
+                  {test1Phase === 'FLASHING' ? 'FLASH !' : 'Veuillez patienter...'}
                 </div>
               )}
             </div>
@@ -635,8 +687,8 @@ const App: React.FC = () => {
             <div className="relative aspect-square md:aspect-video bg-gray-100 rounded-lg overflow-hidden shadow-retro border-4 border-black p-2 bg-white">
               <div className="w-full h-full border-2 border-black overflow-hidden relative">
                 {hasAnswered && currentImg && (
-                  <div className="absolute top-4 left-4 z-30 bg-white border-2 border-black px-3 py-1 text-sm font-black font-mono shadow-retro-sm uppercase">
-                    VÉRITÉ : <span className={currentImg.truth === 'CHAT' ? 'text-green-600' : 'text-red-600'}>{currentImg.truth === 'CHAT' ? 'CHAT' : 'PAS CHAT'}</span>
+                  <div className={`absolute top-4 left-4 z-30 bg-white border-2 border-black px-3 py-1 text-sm font-black font-mono shadow-retro-sm uppercase ${currentImg.truth === 'CHAT' ? 'text-green-600' : 'text-red-600'}`}>
+                    {currentImg.truth === 'CHAT' ? 'CHAT' : 'PAS CHAT'}
                   </div>
                 )}
                 {currentImg && <img src={currentImg.url} alt="Uncertainty Test" className="w-full h-full object-cover" key={test3Index} />}
