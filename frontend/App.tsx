@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { ScreenStage, StressState, Prediction, ActivityImage, TestScores, StressResult, UncertaintyResult } from './types';
 import { MODEL_A, MODEL_B, TEST_1_COUNT, TEST_2_COUNT, TEST_3_COUNT, UNCERTAINTY_THRESHOLD, TRAINING_METRICS } from './constants';
-import { fetchAllImages, fetchPredictions, fetchTransformedPredictions } from './api';
+import { fetchAllImages, fetchLookAlikeImages, fetchPredictions, fetchTransformedPredictions } from './api';
 import { Button } from './components/Button';
 import { AICard } from './components/AICard';
 import { StageProgress } from './components/StageProgress';
@@ -111,6 +111,8 @@ const BonusA2Screen: React.FC<{ onNext: () => void }> = ({ onNext }) => {
 };
 
 type Test1Phase = 'IDLE' | 'COUNTDOWN' | 'FLASHING' | 'ANSWERING' | 'REVEALED';
+type Test2Phase = 'IDLE' | 'LOADING' | 'PIXELATED_VIEW' | 'TRUTH_REVEAL';
+type Test3Phase = 'IDLE' | 'STARTED';
 
 const App: React.FC = () => {
   const [stage, setStage] = useState<ScreenStage>('WELCOME');
@@ -136,18 +138,29 @@ const App: React.FC = () => {
   const [hasAnswered, setHasAnswered] = useState(false);
 
   // Test 2 state
+  const [test2Phase, setTest2Phase] = useState<Test2Phase>('IDLE');
   const [test2Index, setTest2Index] = useState(0);
-  const [stressState, setStressState] = useState<StressState>({ blurLevel: 0, darkLevel: 0, cropLevel: 0 });
-  const [stressResults, setStressResults] = useState<StressResult>({ modelAStability: [], modelBStability: [] });
+  const [test2HasAnswered, setTest2HasAnswered] = useState(false);
+  const [pixelatedImageB64, setPixelatedImageB64] = useState<string | null>(null);
+  const [test2Scores, setTest2Scores] = useState<TestScores>({
+    humanCorrect: 0, humanTotal: 0,
+    modelACorrect: 0, modelATotal: 0,
+    modelBCorrect: 0, modelBTotal: 0,
+  });
 
   // Test 3 state
   const [test3Index, setTest3Index] = useState(0);
-  const [uncertaintyResults, setUncertaintyResults] = useState<UncertaintyResult>({
-    modelAOverconfidentErrors: 0, modelBAbstentions: 0,
-    modelATotal: 0, modelBTotal: 0,
+  const [test3Phase, setTest3Phase] = useState<Test3Phase>('IDLE');
+  const [test3Scores, setTest3Scores] = useState<TestScores>({
+    humanCorrect: 0, humanTotal: 0,
+    modelACorrect: 0, modelATotal: 0,
+    modelBCorrect: 0, modelBTotal: 0,
   });
+  const [test3IdkCount, setTest3IdkCount] = useState(0);
+  const [test3FooledImages, setTest3FooledImages] = useState<{ url: string, conf: number, model: string }[]>([]);
 
   // Global state
+  const [completedTests, setCompletedTests] = useState<Set<string>>(new Set());
   const [allImages, setAllImages] = useState<ActivityImage[]>([]);
 
   // Bonus C state
@@ -163,12 +176,18 @@ const App: React.FC = () => {
         const n = shuffled.length;
         const t1End = Math.min(TEST_1_COUNT, n);
         const t2End = Math.min(t1End + TEST_2_COUNT, n);
-        const t3End = Math.min(t2End + TEST_3_COUNT, n);
         setTest1Images(shuffled.slice(0, t1End));
         setTest2Images(shuffled.slice(t1End, t2End));
-        setTest3Images(shuffled.slice(t2End, t3End));
       })
       .catch(err => console.error("Failed to load images:", err));
+
+    // Load LookAlike images separately for Test 3
+    fetchLookAlikeImages()
+      .then(imgs => {
+        const shuffled = [...imgs].sort(() => Math.random() - 0.5);
+        setTest3Images(shuffled.slice(0, Math.min(TEST_3_COUNT, shuffled.length)));
+      })
+      .catch(err => console.error("Failed to load lookalike images:", err));
   }, []);
 
   // Test 1: DUEL (State Machine)
@@ -188,11 +207,24 @@ const App: React.FC = () => {
   useEffect(() => {
     if (stage !== 'TEST_1_DUEL' || test1Phase !== 'FLASHING') return;
 
+    // Start AI analysis exactly when the human sees the image
+    if (!predA && !isAnalyzing && test1Images.length > test1Index) {
+      setIsAnalyzing(true);
+      fetchPredictions(test1Images[test1Index].id).then(result => {
+        setPredA({ label: result.model_a.label, confidence: result.model_a.confidence });
+        setPredB({ label: result.model_b.label, confidence: result.model_b.confidence });
+        setIsAnalyzing(false);
+      }).catch(err => {
+        console.error("Prediction error:", err);
+        setIsAnalyzing(false);
+      });
+    }
+
     const timer = setTimeout(() => {
       setTest1Phase('ANSWERING');
-    }, 70);
+    }, 40);
     return () => clearTimeout(timer);
-  }, [stage, test1Phase]);
+  }, [stage, test1Phase, predA, isAnalyzing, test1Images, test1Index]);
 
   const startTest1Round = () => {
     setPredA(undefined);
@@ -204,32 +236,20 @@ const App: React.FC = () => {
 
   const handleTest1Answer = async (userAnswer: 'CHAT' | 'PAS_CHAT') => {
     if (test1Phase !== 'ANSWERING' || test1Images.length === 0 || hasAnswered) return;
-    setIsAnalyzing(true);
     setHasAnswered(true); // User has answered for this round
     setTest1Phase('REVEALED'); // Move to revealed phase after user answers
 
-    try {
-      const img = test1Images[test1Index];
-      const result = await fetchPredictions(img.id);
-      const truth = result.truth;
-
-      const pA: Prediction = { label: result.model_a.label, confidence: result.model_a.confidence };
-      const pB: Prediction = { label: result.model_b.label, confidence: result.model_b.confidence };
-      setPredA(pA);
-      setPredB(pB);
-
+    const truth = test1Images[test1Index].truth;
+    if (predA && predB) {
       setTest1Scores(prev => ({
         humanCorrect: prev.humanCorrect + (userAnswer === truth ? 1 : 0),
         humanTotal: prev.humanTotal + 1,
-        modelACorrect: prev.modelACorrect + (pA.label === truth ? 1 : 0),
+        modelACorrect: prev.modelACorrect + (predA.label === truth ? 1 : 0),
         modelATotal: prev.modelATotal + 1,
-        modelBCorrect: prev.modelBCorrect + (pB.label === truth ? 1 : 0),
+        modelBCorrect: prev.modelBCorrect + (predB.label === truth ? 1 : 0),
         modelBTotal: prev.modelBTotal + 1,
       }));
-    } catch (err) {
-      console.error("Prediction error:", err);
     }
-    setIsAnalyzing(false);
   };
 
   const goToNextTest1 = () => {
@@ -237,75 +257,64 @@ const App: React.FC = () => {
       setTest1Index(prev => prev + 1);
       startTest1Round();
     } else {
-      setStage('RESULT_1');
+      setCompletedTests(prev => new Set(prev).add('TEST_1_DUEL')); setStage('RESULT_1');
     }
   };
 
-  // Test 2: STRESS 
-  const fetchStressPredictions = useCallback(async () => {
-    if (test2Images.length === 0 || stage !== 'TEST_2_STRESS') return;
-
-    const transforms: string[] = [];
-    if (stressState.blurLevel > 0) transforms.push('blur');
-    if (stressState.darkLevel > 0) transforms.push('darken');
-    if (stressState.cropLevel > 0) transforms.push('crop');
-
-    try {
-      const img = test2Images[test2Index];
-
-      if (transforms.length === 0) {
-        const result = await fetchPredictions(img.id);
-        setPredA({ label: result.model_a.label, confidence: result.model_a.confidence, stability: 'STABLE' });
-        setPredB({ label: result.model_b.label, confidence: result.model_b.confidence, stability: 'STABLE' });
-      } else {
-        const result = await fetchTransformedPredictions(img.id, transforms);
-        setPredA({
-          label: result.model_a.label,
-          confidence: result.model_a.confidence,
-          stability: result.model_a.stability as Prediction['stability'],
-        });
-        setPredB({
-          label: result.model_b.label,
-          confidence: result.model_b.confidence,
-          stability: result.model_b.stability as Prediction['stability'],
-        });
-      }
-    } catch (err) {
-      console.error("Transform prediction error:", err);
-    }
-  }, [stressState, stage, test2Index, test2Images]);
-
+  // ----- Test 2: PIXELATION -----
   useEffect(() => {
-    if (stage === 'TEST_2_STRESS') {
-      fetchStressPredictions();
-    }
-  }, [fetchStressPredictions, stage]);
+    if (stage !== 'TEST_2_STRESS' || test2Phase !== 'LOADING' || test2Images.length === 0) return;
 
-  const toggleStress = (type: 'blur' | 'dark' | 'crop') => {
-    setStressState(prev => {
-      const key = `${type}Level` as keyof StressState;
-      return { ...prev, [key]: prev[key] === 0 ? 1 : 0 };
-    });
+    const level = test2Index < 2 ? 'light' : test2Index < 4 ? 'medium' : 'heavy';
+
+    setIsAnalyzing(true);
+    fetchTransformedPredictions(test2Images[test2Index].id, [`pixelate_${level}`])
+      .then(result => {
+        setPredA({ label: result.model_a.label, confidence: result.model_a.confidence });
+        setPredB({ label: result.model_b.label, confidence: result.model_b.confidence });
+        setPixelatedImageB64(result.transformed_base64 || null);
+        setIsAnalyzing(false);
+        setTest2Phase('PIXELATED_VIEW');
+      })
+      .catch(err => {
+        console.error("Test 2 Prediction error:", err);
+        setIsAnalyzing(false);
+      });
+  }, [stage, test2Phase, test2Images, test2Index]);
+
+  const handleTest2Answer = (userAnswer: 'CHAT' | 'PAS_CHAT') => {
+    if (test2Phase !== 'PIXELATED_VIEW' || test2Images.length === 0 || test2HasAnswered) return;
+
+    setTest2HasAnswered(true);
+    setTest2Phase('TRUTH_REVEAL');
+    const truth = test2Images[test2Index].truth;
+
+    if (predA && predB) {
+      setTest2Scores(prev => ({
+        humanCorrect: prev.humanCorrect + (userAnswer === truth ? 1 : 0),
+        humanTotal: prev.humanTotal + 1,
+        modelACorrect: prev.modelACorrect + (predA.label === truth ? 1 : 0),
+        modelATotal: prev.modelATotal + 1,
+        modelBCorrect: prev.modelBCorrect + (predB.label === truth ? 1 : 0),
+        modelBTotal: prev.modelBTotal + 1,
+      }));
+    }
   };
 
   const goToNextTest2 = () => {
-    // Save stability results from current predictions
-    setStressResults(prev => ({
-      modelAStability: [...prev.modelAStability, predA?.stability || 'STABLE'],
-      modelBStability: [...prev.modelBStability, predB?.stability || 'STABLE'],
-    }));
-
     if (test2Index < test2Images.length - 1) {
       setTest2Index(prev => prev + 1);
-      setStressState({ blurLevel: 0, darkLevel: 0, cropLevel: 0 });
+      setTest2HasAnswered(false);
       setPredA(undefined);
       setPredB(undefined);
+      setPixelatedImageB64(null);
+      setTest2Phase('LOADING');
     } else {
-      setStage('RESULT_2');
+      setCompletedTests(prev => new Set(prev).add('TEST_2_STRESS')); setStage('RESULT_2');
     }
   };
 
-  // ----- Test 3: UNCERTAINTY -----
+  // Test 3: FAUX AMIS (LookAlike)
   const handleTest3Answer = async (userAnswer: 'CHAT' | 'PAS_CHAT' | 'IDK') => {
     if (hasAnswered || test3Images.length === 0) return;
     setIsAnalyzing(true);
@@ -314,26 +323,33 @@ const App: React.FC = () => {
     try {
       const img = test3Images[test3Index];
       const result = await fetchPredictions(img.id);
-      const truth = result.truth;
+      const truth = result.truth; // always PAS_CHAT for LookAlike
 
-      // Apply uncertainty threshold: if confidence < threshold, show INCERTAIN
-      const labelA = result.model_a.confidence < UNCERTAINTY_THRESHOLD ? 'INCERTAIN' as const : result.model_a.label;
-      const labelB = result.model_b.confidence < UNCERTAINTY_THRESHOLD ? 'INCERTAIN' as const : result.model_b.label;
-
-      const pA: Prediction = { label: labelA, confidence: result.model_a.confidence };
-      const pB: Prediction = { label: labelB, confidence: result.model_b.confidence };
+      const pA: Prediction = { label: result.model_a.label, confidence: result.model_a.confidence };
+      const pB: Prediction = { label: result.model_b.label, confidence: result.model_b.confidence };
       setPredA(pA);
       setPredB(pB);
 
-      // Track: A overconfident error (high confidence but wrong), B abstention
-      setUncertaintyResults(prev => ({
-        modelAOverconfidentErrors: prev.modelAOverconfidentErrors +
-          (result.model_a.label !== truth && result.model_a.confidence >= UNCERTAINTY_THRESHOLD ? 1 : 0),
-        modelBAbstentions: prev.modelBAbstentions +
-          (result.model_b.confidence < UNCERTAINTY_THRESHOLD ? 1 : 0),
+      // Track scores
+      const humanCorrect = userAnswer === 'IDK' ? 0 : (userAnswer === truth ? 1 : 0);
+      if (userAnswer === 'IDK') setTest3IdkCount(prev => prev + 1);
+
+      setTest3Scores(prev => ({
+        humanCorrect: prev.humanCorrect + humanCorrect,
+        humanTotal: prev.humanTotal + 1,
+        modelACorrect: prev.modelACorrect + (result.model_a.label === truth ? 1 : 0),
         modelATotal: prev.modelATotal + 1,
+        modelBCorrect: prev.modelBCorrect + (result.model_b.label === truth ? 1 : 0),
         modelBTotal: prev.modelBTotal + 1,
       }));
+
+      // Track images that fooled AIs (IA said CHAT when truth is PAS_CHAT)
+      if (result.model_a.label === 'CHAT') {
+        setTest3FooledImages(prev => [...prev, { url: img.url, conf: result.model_a.confidence, model: 'IA A' }]);
+      }
+      if (result.model_b.label === 'CHAT') {
+        setTest3FooledImages(prev => [...prev, { url: img.url, conf: result.model_b.confidence, model: 'IA B' }]);
+      }
     } catch (err) {
       console.error("Prediction error:", err);
     }
@@ -347,30 +363,81 @@ const App: React.FC = () => {
       setPredB(undefined);
       setHasAnswered(false);
     } else {
-      setStage('RESULT_3');
+      setCompletedTests(prev => new Set(prev).add('TEST_3_UNCERTAINTY')); setStage('RESULT_3');
     }
-  };
-
-  // Filter CSS for stress test visual
-  const getFilterStyle = () => {
-    if (stage !== 'TEST_2_STRESS') return {};
-    return {
-      filter: `blur(${stressState.blurLevel * 4}px) brightness(${1 - stressState.darkLevel * 0.5})`,
-      transform: `scale(${1 + stressState.cropLevel * 0.4})`
-    };
   };
 
   // Computed stats
   const pct = (n: number, t: number) => t > 0 ? Math.round((n / t) * 100) : 0;
-  const stabilityScore = (arr: string[]) => {
-    if (arr.length === 0) return 100;
-    const stableCount = arr.filter(s => s === 'STABLE').length;
-    return Math.round((stableCount / arr.length) * 100);
+
+  const switchTest = (targetStage: ScreenStage) => {
+    if (stage === targetStage) return;
+
+    // Always reset all tests to IDLE
+    setTest1Phase('IDLE'); setTest1Index(0); setCountdown(3);
+    setTest2Phase('IDLE'); setTest2Index(0); setTest2HasAnswered(false); setPixelatedImageB64(null);
+    setTest3Phase('IDLE'); setTest3Index(0);
+
+    // Global resets
+    setPredA(undefined); setPredB(undefined); setHasAnswered(false); setIsAnalyzing(false);
+
+    setStage(targetStage);
   };
 
-  // ============================================================
+  const renderTopNav = () => {
+    const isTestOngoing =
+      (stage === 'TEST_1_DUEL' && test1Phase !== 'IDLE') ||
+      (stage === 'TEST_2_STRESS' && test2Phase !== 'IDLE') ||
+      (stage === 'TEST_3_UNCERTAINTY' && test3Phase !== 'IDLE');
+
+    const isResultScreen = stage === 'RESULT_1' || stage === 'RESULT_2' || stage === 'RESULT_3';
+    const locked = isTestOngoing || isResultScreen;
+
+    const activeTest = stage === 'TEST_1_DUEL' || stage === 'RESULT_1' ? 'TEST_1_DUEL'
+      : stage === 'TEST_2_STRESS' || stage === 'RESULT_2' ? 'TEST_2_STRESS'
+        : 'TEST_3_UNCERTAINTY';
+
+    const getBtnClass = (btnStage: string) => {
+      const isActive = activeTest === btnStage;
+      const isDone = completedTests.has(btnStage);
+      const isDisabled = locked || isDone;
+      return `flex-1 max-w-[280px] py-1 font-mono text-sm font-bold uppercase rounded-sm border-2 transition-all ${isActive ? 'bg-black text-white border-black'
+        : isDone ? 'bg-green-50 text-green-600 border-green-300'
+          : 'bg-white text-gray-500 border-gray-300'
+        } ${isDisabled && !isActive ? 'cursor-not-allowed' : !isActive ? 'hover:border-black hover:text-black cursor-pointer' : ''
+        }`;
+    };
+
+    const canClick = (btnStage: string) => !locked && !completedTests.has(btnStage);
+
+    return (
+      <div className="bg-gray-100 border-b-2 border-black flex justify-center gap-3 px-6 py-1 relative z-40">
+        <button
+          onClick={() => canClick('TEST_1_DUEL') && switchTest('TEST_1_DUEL')}
+          disabled={!canClick('TEST_1_DUEL')}
+          className={getBtnClass('TEST_1_DUEL')}
+        >
+          {completedTests.has('TEST_1_DUEL') ? '✓' : '⚡'} 1. Rapidité
+        </button>
+        <button
+          onClick={() => canClick('TEST_2_STRESS') && switchTest('TEST_2_STRESS')}
+          disabled={!canClick('TEST_2_STRESS')}
+          className={getBtnClass('TEST_2_STRESS')}
+        >
+          {completedTests.has('TEST_2_STRESS') ? '✓' : '🔲'} 2. Pixélisation
+        </button>
+        <button
+          onClick={() => canClick('TEST_3_UNCERTAINTY') && switchTest('TEST_3_UNCERTAINTY')}
+          disabled={!canClick('TEST_3_UNCERTAINTY')}
+          className={getBtnClass('TEST_3_UNCERTAINTY')}
+        >
+          {completedTests.has('TEST_3_UNCERTAINTY') ? '❓' : '❓'} 3. Faux Amis
+        </button>
+      </div>
+    );
+  };
+
   // SCREENS
-  // ============================================================
 
   if (stage === 'WELCOME') {
     return (
@@ -390,7 +457,7 @@ const App: React.FC = () => {
               Vision-Duel
             </h1>
             <div className="h-1 w-24 bg-black mx-auto"></div>
-            <p className="text-xl text-gray-600 font-mono">Bureau de Certification IA</p>
+            <p className="text-xl text-gray-600 font-mono">Bureau d'Analyse IA</p>
             <p className="text-lg text-gray-500 font-medium">
               Tu vas certifier une IA. Deux candidates. Même tâche.<br />
               On les teste et tu décides laquelle mérite le certificat.
@@ -443,6 +510,7 @@ const App: React.FC = () => {
     const currentImg = test1Images[test1Index];
     return (
       <div className="min-h-screen flex flex-col">
+        {renderTopNav()}
         <StageProgress currentStage={1} totalStages={3} title="Test 1 : Le Duel" subtitle={`Image ${test1Index + 1} / ${test1Images.length}`} />
         <div className="flex-1 flex flex-col md:flex-row p-6 gap-8 max-w-7xl mx-auto w-full">
           <div className="flex-[2] flex flex-col justify-center space-y-6">
@@ -515,8 +583,8 @@ const App: React.FC = () => {
           </div>
 
           <div className="flex-1 flex flex-col gap-6">
-            <div className="flex-1"><AICard model={MODEL_A} prediction={predA} loading={isAnalyzing} /></div>
-            <div className="flex-1"><AICard model={MODEL_B} prediction={predB} loading={isAnalyzing} /></div>
+            <div className="flex-1"><AICard model={MODEL_A} prediction={predA} loading={isAnalyzing} masked={!hasAnswered} /></div>
+            <div className="flex-1"><AICard model={MODEL_B} prediction={predB} loading={isAnalyzing} masked={!hasAnswered} /></div>
           </div>
         </div>
       </div>
@@ -525,36 +593,47 @@ const App: React.FC = () => {
 
   if (stage === 'RESULT_1') {
     return (
-      <div className="min-h-screen flex flex-col justify-center items-center p-8 relative">
-        <div className="absolute inset-0 bg-dot-pattern opacity-50 pointer-events-none"></div>
-        <div className="max-w-4xl w-full bg-white rounded-lg border-4 border-black shadow-retro-lg p-12 text-center space-y-8 animate-fade-in z-10">
-          <div className="inline-flex items-center justify-center p-4 bg-green-100 border-2 border-black rounded-full text-green-700 mb-4 shadow-retro-sm">
-            <CheckCircle size={48} />
+      <div className="min-h-screen flex flex-col relative">
+        {renderTopNav()}
+        <div className="flex-1 flex flex-col justify-center items-center p-8">
+          <div className="absolute inset-0 bg-dot-pattern opacity-50 pointer-events-none"></div>
+          <div className="max-w-5xl w-full bg-white rounded-lg border-4 border-black shadow-retro-lg p-8 text-center space-y-6 animate-fade-in z-10">
+            <h2 className="text-3xl font-black uppercase tracking-tight">Ce que tu viens de tester</h2>
+
+            <div className="grid grid-cols-3 gap-8 py-8 border-t-2 border-b-2 border-dashed border-gray-300">
+              <div className="text-center">
+                <div className="text-4xl font-black text-brand-dark mb-2">{test1Scores.humanCorrect}/{test1Scores.humanTotal}</div>
+                <div className="text-gray-500 font-mono text-sm uppercase">Score humain</div>
+              </div>
+              <div className="text-center">
+                <div className="text-5xl font-black text-brand-blue mb-2">{test1Scores.modelACorrect}/{test1Scores.modelATotal}</div>
+                <div className="text-gray-500 font-mono text-sm uppercase">Score IA A</div>
+              </div>
+              <div className="text-center">
+                <div className="text-5xl font-black text-brand-orange mb-2">{test1Scores.modelBCorrect}/{test1Scores.modelBTotal}</div>
+                <div className="text-gray-500 font-mono text-sm uppercase">Score IA B</div>
+              </div>
+            </div>
+
+            <div className="text-left space-y-6 max-w-5xl mx-auto bg-gray-50 p-6 rounded-lg border-2 border-black">
+              <p className="text-base text-gray-800 leading-relaxed">
+                <strong className="text-brand-dark uppercase bg-brand-dark/10 px-2 py-1 rounded">Dans ce mode "flash"</strong><br />
+                L'image n'apparaît que très brièvement. Ton cerveau doit décider avec peu d'informations : formes incomplètes, détails manquants, et parfois une illusion visuelle. C'est pour ça qu'on se trompe plus facilement en mode réflexe.
+              </p>
+              <p className="text-base text-gray-800 leading-relaxed">
+                <strong className="text-brand-dark uppercase bg-brand-dark/10 px-2 py-1 rounded">Comment l'IA répond si vite</strong><br />
+                L'IA ne "réfléchit" pas comme un humain. Elle applique une fonction apprise à partir d'exemples : l'image est transformée en nombres, puis le modèle calcule un score "chat" et un score "pas chat". Le plus élevé gagne. La barre de confiance indique à quel point le modèle préfère une option, mais ce n'est pas une garantie de vérité.
+              </p>
+              <p className="text-base text-gray-800 leading-relaxed">
+                <strong className="text-brand-dark uppercase bg-brand-dark/10 px-2 py-1 rounded">Ce qu'il faut retenir</strong><br />
+                Réussir sur des images rapides montre surtout une chose : le modèle fonctionne bien quand l'information visuelle est claire et proche de ce qu'il a appris. La vraie question pour juger sa fiabilité est : que se passe-t-il quand on enlève des détails, par exemple en pixélisant l'image ? C'est ce qu'on teste à l'étape suivante.
+              </p>
+            </div>
+
+            <Button onClick={() => { switchTest('TEST_2_STRESS') }} className="w-full max-w-sm mx-auto text-xl py-4 mt-8">
+              Passer à la Pixélisation <ArrowRight className="inline ml-2" />
+            </Button>
           </div>
-          <h2 className="text-4xl font-black uppercase tracking-tight">Résultat du Duel</h2>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            Sur des cas standard, les deux IA semblent fiables. Ce test ne suffit pas pour les départager.
-          </p>
-          <div className="grid grid-cols-3 gap-8 py-8 border-t-2 border-b-2 border-dashed border-gray-300">
-            <div className="text-center">
-              <div className="text-5xl font-black text-brand-dark mb-2">{pct(test1Scores.humanCorrect, test1Scores.humanTotal)}%</div>
-              <div className="text-gray-500 font-mono text-sm uppercase">Toi</div>
-            </div>
-            <div className="text-center">
-              <div className="text-5xl font-black text-brand-blue mb-2">{pct(test1Scores.modelACorrect, test1Scores.modelATotal)}%</div>
-              <div className="text-gray-500 font-mono text-sm uppercase">IA A ({MODEL_A.type})</div>
-            </div>
-            <div className="text-center">
-              <div className="text-5xl font-black text-brand-orange mb-2">{pct(test1Scores.modelBCorrect, test1Scores.modelBTotal)}%</div>
-              <div className="text-gray-500 font-mono text-sm uppercase">IA B ({MODEL_B.type})</div>
-            </div>
-          </div>
-          <p className="text-sm text-gray-500 italic font-mono">
-            "Sur des cas standards, tout semble intelligent. Mais ce test ne suffit pas."
-          </p>
-          <Button onClick={() => { setStage('TEST_2_STRESS'); setPredA(undefined); setPredB(undefined); setStressState({ blurLevel: 0, darkLevel: 0, cropLevel: 0 }); }} className="w-full max-w-sm mx-auto">
-            Passer au Stress Test <ArrowRight className="inline ml-2" />
-          </Button>
         </div>
       </div>
     );
@@ -562,74 +641,78 @@ const App: React.FC = () => {
 
   if (stage === 'TEST_2_STRESS') {
     const currentImg = test2Images[test2Index];
-    const stabilityBadge = (s?: string) => {
-      if (!s || s === 'STABLE') return <span className="bg-green-100 text-green-800 border border-green-500 px-2 py-1 rounded font-mono text-xs font-bold">STABLE</span>;
-      if (s === 'FRAGILE') return <span className="bg-yellow-100 text-yellow-800 border border-yellow-500 px-2 py-1 rounded font-mono text-xs font-bold animate-pulse">FRAGILE</span>;
-      return <span className="bg-red-100 text-red-800 border border-red-500 px-2 py-1 rounded font-mono text-xs font-bold animate-pulse">CASSE</span>;
-    };
+    const level = test2Index < 2 ? 'léger' : test2Index < 4 ? 'moyen' : 'fort';
 
     return (
       <div className="min-h-screen flex flex-col">
-        <StageProgress currentStage={2} totalStages={3} title="Test 2 : Stress Test" subtitle={`Image ${test2Index + 1} / ${test2Images.length} — Modifiez l'image`} />
+        {renderTopNav()}
+        <StageProgress currentStage={2} totalStages={3} title="Test 2 : Pixélisation" subtitle={`Image ${test2Index + 1} / ${test2Images.length} — Difficulté: ${level}`} />
         <div className="flex-1 flex flex-col md:flex-row p-6 gap-8 max-w-7xl mx-auto w-full">
           <div className="flex-[2] flex flex-col justify-center space-y-6">
             <div className="relative aspect-square md:aspect-video bg-gray-900 rounded-lg overflow-hidden shadow-retro border-4 border-black p-2 bg-white">
               <div className="w-full h-full border-2 border-black overflow-hidden relative bg-black">
-                {hasAnswered && currentImg && (
-                  <div className={`absolute top-4 left-4 z-30 bg-white border-2 border-black px-3 py-1 text-sm font-black font-mono shadow-retro-sm uppercase ${currentImg.truth === 'CHAT' ? 'text-green-600' : 'text-red-600'}`}>
-                    {currentImg.truth === 'CHAT' ? 'CHAT' : 'PAS CHAT'}
-                  </div>
+                {test2Phase !== 'IDLE' && (
+                  <>
+                    {test2Phase === 'TRUTH_REVEAL' && currentImg && (
+                      <div className={`absolute top-4 left-4 z-30 bg-white border-2 border-black px-3 py-1 text-sm font-black font-mono shadow-retro-sm uppercase ${currentImg.truth === 'CHAT' ? 'text-green-600' : 'text-red-600'}`}>
+                        {currentImg.truth === 'CHAT' ? 'CHAT' : 'PAS CHAT'}
+                      </div>
+                    )}
+                    <div className="w-full h-full overflow-hidden flex items-center justify-center">
+                      {test2Phase === 'LOADING' ? (
+                        <div className="text-white font-mono animate-pulse uppercase tracking-widest text-sm">Génération de l'image pixélisée...</div>
+                      ) : test2Phase === 'TRUTH_REVEAL' && currentImg ? (
+                        <img src={currentImg.url} alt="Original" className="w-full h-full object-cover animate-fade-in" />
+                      ) : pixelatedImageB64 ? (
+                        <img src={`data:image/jpeg;base64,${pixelatedImageB64}`} alt="Pixelated" className="w-full h-full object-cover animate-fade-in" style={{ imageRendering: 'pixelated' }} />
+                      ) : null}
+                    </div>
+                    <div className="absolute top-4 right-4 bg-black text-white px-3 py-1 rounded border border-white/20 text-xs font-mono uppercase tracking-widest z-20">
+                      Niveau : {level}
+                    </div>
+                  </>
                 )}
-                <div className="w-full h-full overflow-hidden transition-all duration-300 ease-out" style={getFilterStyle()}>
-                  {currentImg && <img src={currentImg.url} alt="Stress Test" className="w-full h-full object-cover" />}
+              </div>
+            </div>
+
+            <div className="h-20 flex flex-col justify-center">
+              {test2Phase === 'IDLE' ? (
+                <Button onClick={() => setTest2Phase('LOADING')} className="w-full h-20 text-xl font-bold">Lancer le duel</Button>
+              ) : test2Phase === 'PIXELATED_VIEW' && (
+                <div className="grid grid-cols-2 gap-6 animate-fade-in">
+                  <Button onClick={() => handleTest2Answer('PAS_CHAT')} disabled={isAnalyzing} className="h-20 text-xl" variant="secondary">PAS CHAT</Button>
+                  <Button onClick={() => handleTest2Answer('CHAT')} disabled={isAnalyzing} className="h-20 text-xl">CHAT</Button>
                 </div>
-                <div className="absolute top-4 right-4 bg-black text-white px-3 py-1 rounded border border-white/20 text-xs font-mono uppercase tracking-widest z-20">
-                  Mode Robustesse
+              )}
+              {test2Phase === 'TRUTH_REVEAL' && (
+                <div className="flex justify-center animate-fade-in">
+                  <Button onClick={goToNextTest2} className="px-12 h-20 text-lg">
+                    {test2Index < test2Images.length - 1 ? 'Suivant' : 'Voir les résultats'} <ArrowRight className="inline ml-2" size={20} />
+                  </Button>
                 </div>
-              </div>
+              )}
             </div>
 
-            <div className="bg-white p-6 rounded-lg shadow-retro-sm border-2 border-black">
-              <h3 className="text-sm font-bold text-gray-500 font-mono uppercase tracking-wider mb-4 border-b border-gray-200 pb-2">Panneau de Perturbation</h3>
-              <div className="grid grid-cols-3 gap-4">
-                <button onClick={() => toggleStress('dark')}
-                  className={`flex flex-col items-center justify-center p-4 rounded border-2 transition-all ${stressState.darkLevel > 0 ? 'bg-black text-white border-black shadow-retro-sm translate-x-[2px] translate-y-[2px]' : 'bg-white text-gray-800 border-black hover:bg-gray-50'}`}>
-                  <Sun size={24} className="mb-2" /><span className="font-bold text-sm uppercase">Assombrir</span>
-                </button>
-                <button onClick={() => toggleStress('crop')}
-                  className={`flex flex-col items-center justify-center p-4 rounded border-2 transition-all ${stressState.cropLevel > 0 ? 'bg-black text-white border-black shadow-retro-sm translate-x-[2px] translate-y-[2px]' : 'bg-white text-gray-800 border-black hover:bg-gray-50'}`}>
-                  <Crop size={24} className="mb-2" /><span className="font-bold text-sm uppercase">Recadrer</span>
-                </button>
-                <button onClick={() => toggleStress('blur')}
-                  className={`flex flex-col items-center justify-center p-4 rounded border-2 transition-all ${stressState.blurLevel > 0 ? 'bg-black text-white border-black shadow-retro-sm translate-x-[2px] translate-y-[2px]' : 'bg-white text-gray-800 border-black hover:bg-gray-50'}`}>
-                  <Aperture size={24} className="mb-2" /><span className="font-bold text-sm uppercase">Flou</span>
-                </button>
+            {/* Live scoreboard Test 2 */}
+            <div className={`grid grid-cols-3 gap-4 text-center bg-white border-2 border-black rounded p-4 shadow-retro-sm transition-opacity duration-300 ${test2Scores.humanTotal > 0 ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+              <div>
+                <div className="text-2xl font-black text-brand-dark">{test2Scores.humanCorrect}/{test2Scores.humanTotal}</div>
+                <div className="text-xs text-gray-500 font-mono uppercase">Toi</div>
               </div>
-            </div>
-
-            {/* Stability indicators */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-white border-2 border-black rounded p-4 flex items-center justify-between shadow-retro-sm">
-                <span className="font-mono text-sm font-bold uppercase text-brand-blue">IA A</span>
-                {stabilityBadge(predA?.stability)}
+              <div>
+                <div className="text-2xl font-black text-brand-blue">{test2Scores.modelACorrect}/{test2Scores.modelATotal}</div>
+                <div className="text-xs text-gray-500 font-mono uppercase">IA A</div>
               </div>
-              <div className="bg-white border-2 border-black rounded p-4 flex items-center justify-between shadow-retro-sm">
-                <span className="font-mono text-sm font-bold uppercase text-brand-orange">IA B</span>
-                {stabilityBadge(predB?.stability)}
+              <div>
+                <div className="text-2xl font-black text-brand-orange">{test2Scores.modelBCorrect}/{test2Scores.modelBTotal}</div>
+                <div className="text-xs text-gray-500 font-mono uppercase">IA B</div>
               </div>
-            </div>
-
-            <div className="flex justify-between items-center px-2">
-              <button onClick={() => setStressState({ blurLevel: 0, darkLevel: 0, cropLevel: 0 })} className="text-sm text-gray-500 underline hover:text-black font-mono uppercase">Réinitialiser</button>
-              <Button onClick={goToNextTest2}>
-                {test2Index < test2Images.length - 1 ? 'Suivant' : 'Voir les resultats'} <ArrowRight className="inline ml-2" size={18} />
-              </Button>
             </div>
           </div>
 
           <div className="flex-1 flex flex-col gap-6">
-            <div className="flex-1"><AICard model={MODEL_A} prediction={predA} highlightStability={true} /></div>
-            <div className="flex-1"><AICard model={MODEL_B} prediction={predB} highlightStability={true} /></div>
+            <div className="flex-1"><AICard model={MODEL_A} prediction={predA} loading={isAnalyzing || test2Phase === 'LOADING'} masked={!test2HasAnswered} /></div>
+            <div className="flex-1"><AICard model={MODEL_B} prediction={predB} loading={isAnalyzing || test2Phase === 'LOADING'} masked={!test2HasAnswered} /></div>
           </div>
         </div>
       </div>
@@ -637,34 +720,47 @@ const App: React.FC = () => {
   }
 
   if (stage === 'RESULT_2') {
-    const aStab = stabilityScore(stressResults.modelAStability);
-    const bStab = stabilityScore(stressResults.modelBStability);
     return (
-      <div className="min-h-screen flex flex-col justify-center items-center p-8 relative">
-        <div className="absolute inset-0 bg-dot-pattern opacity-50 pointer-events-none"></div>
-        <div className="max-w-4xl w-full bg-white rounded-lg border-4 border-black shadow-retro-lg p-12 text-center space-y-8 animate-fade-in z-10">
-          <div className="inline-flex items-center justify-center p-4 bg-yellow-100 border-2 border-black rounded-full text-yellow-700 mb-4 shadow-retro-sm">
-            <AlertTriangle size={48} />
-          </div>
-          <h2 className="text-4xl font-black uppercase tracking-tight">Le spécialiste craque !</h2>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            Une IA peut être excellente sur des images propres, mais fragile dès que la photo est un peu différente.
-          </p>
-          <div className="flex justify-center gap-8 py-8">
-            <div className="p-6 bg-red-50 rounded border-2 border-black w-1/2 shadow-sm">
-              <h4 className="font-bold text-red-800 mb-2 font-mono uppercase">IA A</h4>
-              <div className="text-4xl font-black text-red-600">{aStab}%</div>
-              <p className="text-xs text-red-500 mt-2 font-mono">stabilité sous stress</p>
+      <div className="min-h-screen flex flex-col relative">
+        {renderTopNav()}
+        <div className="flex-1 flex flex-col justify-center items-center p-8">
+          <div className="absolute inset-0 bg-dot-pattern opacity-50 pointer-events-none"></div>
+          <div className="max-w-5xl w-full bg-white rounded-lg border-4 border-black shadow-retro-lg p-8 text-center space-y-6 animate-fade-in z-10">
+            <h2 className="text-4xl font-black uppercase tracking-tight">Ce que montre la pixélisation</h2>
+
+            <div className="grid grid-cols-3 gap-8 py-8 border-t-2 border-b-2 border-dashed border-gray-300">
+              <div className="text-center">
+                <div className="text-5xl font-black text-brand-dark mb-2">{test2Scores.humanCorrect}/{test2Scores.humanTotal}</div>
+                <div className="text-gray-500 font-mono text-sm uppercase">Score humain</div>
+              </div>
+              <div className="text-center">
+                <div className="text-5xl font-black text-brand-blue mb-2">{test2Scores.modelACorrect}/{test2Scores.modelATotal}</div>
+                <div className="text-gray-500 font-mono text-sm uppercase">Score IA A</div>
+              </div>
+              <div className="text-center">
+                <div className="text-5xl font-black text-brand-orange mb-2">{test2Scores.modelBCorrect}/{test2Scores.modelBTotal}</div>
+                <div className="text-gray-500 font-mono text-sm uppercase">Score IA B</div>
+              </div>
             </div>
-            <div className="p-6 bg-green-50 rounded border-2 border-black w-1/2 shadow-sm">
-              <h4 className="font-bold text-green-800 mb-2 font-mono uppercase">IA B</h4>
-              <div className="text-4xl font-black text-green-600">{bStab}%</div>
-              <p className="text-xs text-green-500 mt-2 font-mono">stabilité sous stress</p>
+            <div className="text-sm font-mono text-gray-500 uppercase pb-4">Niveaux de pixélisation utilisés : Léger, Moyen, Fort</div>
+
+            <div className="text-left space-y-6 max-w-5xl mx-auto bg-gray-50 p-6 rounded-lg border-2 border-black">
+              <p className="text-base text-gray-800 leading-relaxed">
+                Quand on pixélise une image, on supprime une partie de l'information : les détails fins disparaissent et il ne reste que des formes grossières. Dans cette étape, toi et les deux IA avez pris une décision sur <strong className="bg-yellow-200 px-1">exactement la même image dégradée</strong>.
+              </p>
+              <p className="text-base text-gray-800 leading-relaxed">
+                Ce test montre une limite simple mais importante : un modèle peut être très bon quand l'image est "propre", puis perdre en fiabilité dès qu'on réduit la qualité. La différence vient souvent de ce que le modèle a appris à utiliser : des détails fragiles (textures, petits motifs) ou des indices plus robustes (formes générales).
+              </p>
+              <p className="text-base text-gray-800 leading-relaxed font-bold bg-brand-dark/10 p-4 rounded border-l-4 border-brand-dark">
+                Ce qu’il faut retenir : pour juger une IA, il ne suffit pas de regarder si elle réussit sur des images parfaites. Il faut vérifier comment elle se comporte quand l'information se dégrade, car c'est ce qui arrive souvent en conditions réelles.
+              </p>
             </div>
+
+            <Button onClick={() => { switchTest('TEST_3_UNCERTAINTY'); }} className="w-full max-w-sm mx-auto text-xl py-4 mt-8">
+              Dernier test : Faux Amis <ArrowRight className="inline ml-2" />
+            </Button>
+            <p className="text-sm text-gray-500 font-mono pt-2">Étape suivante : on va tester des cas où l'image ressemble à un chat... sans être un chat.</p>
           </div>
-          <Button onClick={() => { setStage('TEST_3_UNCERTAINTY'); setHasAnswered(false); setPredA(undefined); setPredB(undefined); }} className="w-full max-w-sm mx-auto">
-            Dernier test : Incertitude <ArrowRight className="inline ml-2" />
-          </Button>
         </div>
       </div>
     );
@@ -674,11 +770,12 @@ const App: React.FC = () => {
     const currentImg = test3Images[test3Index];
     return (
       <div className="min-h-screen flex flex-col">
-        <StageProgress currentStage={3} totalStages={3} title="Test 3 : L'Incertitude" subtitle={`Image ${test3Index + 1} / ${test3Images.length} — Images ambigues`} />
+        {renderTopNav()}
+        <StageProgress currentStage={3} totalStages={3} title="Test 3 : Faux Amis" subtitle={`Image ${test3Index + 1} / ${test3Images.length} — Est-ce vraiment un chat ?`} />
         <div className="bg-white border-b-4 border-black p-4">
           <div className="max-w-3xl mx-auto text-center">
             <p className="text-sm text-gray-600 font-mono">
-              Seuil de doute : si la confiance est sous <strong>{UNCERTAINTY_THRESHOLD}%</strong>, l'IA devrait dire "Je ne sais pas".
+              Ces images <strong>ressemblent à des chats</strong> sans en être forcément. L'IA va-t-elle se laisser piéger ?
             </p>
           </div>
         </div>
@@ -686,16 +783,22 @@ const App: React.FC = () => {
           <div className="flex-[2] flex flex-col justify-center space-y-6">
             <div className="relative aspect-square md:aspect-video bg-gray-100 rounded-lg overflow-hidden shadow-retro border-4 border-black p-2 bg-white">
               <div className="w-full h-full border-2 border-black overflow-hidden relative">
-                {hasAnswered && currentImg && (
-                  <div className={`absolute top-4 left-4 z-30 bg-white border-2 border-black px-3 py-1 text-sm font-black font-mono shadow-retro-sm uppercase ${currentImg.truth === 'CHAT' ? 'text-green-600' : 'text-red-600'}`}>
-                    {currentImg.truth === 'CHAT' ? 'CHAT' : 'PAS CHAT'}
-                  </div>
+                {test3Phase === 'STARTED' && (
+                  <>
+                    {hasAnswered && currentImg && (
+                      <div className={`absolute top-4 left-4 z-30 bg-white border-2 border-black px-3 py-1 text-sm font-black font-mono shadow-retro-sm uppercase text-red-600`}>
+                        PAS CHAT (faux ami)
+                      </div>
+                    )}
+                    {currentImg && <img src={currentImg.url} alt="Uncertainty Test" className="w-full h-full object-cover" key={test3Index} />}
+                  </>
                 )}
-                {currentImg && <img src={currentImg.url} alt="Uncertainty Test" className="w-full h-full object-cover" key={test3Index} />}
               </div>
             </div>
 
-            {!hasAnswered ? (
+            {test3Phase === 'IDLE' ? (
+              <Button onClick={() => setTest3Phase('STARTED')} className="w-full h-20 text-xl font-bold">Lancer le duel</Button>
+            ) : !hasAnswered ? (
               <div className="grid grid-cols-3 gap-4">
                 <Button onClick={() => handleTest3Answer('PAS_CHAT')} disabled={isAnalyzing} variant="secondary" className="text-lg h-16">PAS CHAT</Button>
                 <Button onClick={() => handleTest3Answer('IDK')} disabled={isAnalyzing} className="bg-brand-dark text-white hover:bg-black border-2 border-black text-lg h-16">JE NE SAIS PAS</Button>
@@ -720,160 +823,167 @@ const App: React.FC = () => {
   }
 
   if (stage === 'RESULT_3') {
+    const topFooled = [...test3FooledImages].sort((a, b) => b.conf - a.conf).slice(0, 2);
     return (
-      <div className="min-h-screen flex flex-col justify-center items-center p-8 relative">
-        <div className="absolute inset-0 bg-dot-pattern opacity-50 pointer-events-none"></div>
-        <div className="max-w-4xl w-full bg-white rounded-lg border-4 border-black shadow-retro-lg p-12 text-center space-y-8 animate-fade-in z-10">
-          <div className="inline-flex items-center justify-center p-4 bg-purple-100 border-2 border-black rounded-full text-purple-700 mb-4 shadow-retro-sm">
-            <Eye size={48} />
-          </div>
-          <h2 className="text-4xl font-black uppercase tracking-tight">Savoir s'abstenir</h2>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            Répondre moins peut éviter des erreurs : tout dépend du contexte d'usage.
-          </p>
-          <div className="bg-gray-50 p-6 rounded border-2 border-black text-left max-w-lg mx-auto shadow-sm">
-            <div className="flex justify-between items-center mb-4 pb-4 border-b border-gray-200">
-              <span className="text-gray-500 font-mono uppercase text-sm">Erreurs de IA A (trop confiante)</span>
-              <span className="font-black text-red-500 text-2xl">{uncertaintyResults.modelAOverconfidentErrors}</span>
+      <div className="min-h-screen flex flex-col relative">
+        {renderTopNav()}
+        <div className="flex-1 flex flex-col justify-center items-center p-8">
+          <div className="absolute inset-0 bg-dot-pattern opacity-50 pointer-events-none"></div>
+          <div className="max-w-6xl w-full bg-white rounded-lg border-4 border-black shadow-retro-lg p-6 text-center space-y-4 animate-fade-in z-10">
+            <h2 className="text-2xl font-black uppercase tracking-tight">Ce que montrent les "faux amis"</h2>
+
+            <div className="grid grid-cols-3 gap-6 py-4 border-t-2 border-b-2 border-dashed border-gray-300">
+              <div className="text-center">
+                <div className="text-4xl font-black text-brand-dark mb-2">{test3Scores.humanCorrect}/{test3Scores.humanTotal}</div>
+                <div className="text-gray-500 font-mono text-sm uppercase">Score humain</div>
+              </div>
+              <div className="text-center">
+                <div className="text-4xl font-black text-brand-blue mb-2">{test3Scores.modelACorrect}/{test3Scores.modelATotal}</div>
+                <div className="text-gray-500 font-mono text-sm uppercase">Score IA A</div>
+              </div>
+              <div className="text-center">
+                <div className="text-4xl font-black text-brand-orange mb-2">{test3Scores.modelBCorrect}/{test3Scores.modelBTotal}</div>
+                <div className="text-gray-500 font-mono text-sm uppercase">Score IA B</div>
+              </div>
             </div>
-            <div className="flex justify-between items-center">
-              <span className="text-gray-500 font-mono uppercase text-sm">Abstentions de IA B (prudente)</span>
-              <span className="font-black text-blue-500 text-2xl">{uncertaintyResults.modelBAbstentions}</span>
+
+            {topFooled.length > 0 && (
+              <div className="bg-red-50 border-2 border-red-300 rounded-lg p-4">
+                <p className="font-mono text-sm text-gray-500 uppercase mb-3">Top {topFooled.length} faux amis qui ont le plus trompé l'IA</p>
+                <div className="flex justify-center gap-4">
+                  {topFooled.map((f, i) => (
+                    <div key={i} className="text-center">
+                      <img src={f.url} alt={`Faux ami ${i + 1}`} className="w-24 h-24 object-cover rounded border-2 border-black" />
+                      <p className="text-xs font-mono mt-1">{f.model} — {f.conf.toFixed(0)}% confiance</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="text-left space-y-3 max-w-full mx-auto bg-gray-50 p-4 rounded-lg border-2 border-black">
+              <p className="text-sm text-gray-800 leading-relaxed">
+                Dans cette étape, les images étaient <strong className="bg-yellow-200 px-1">volontairement ambiguës</strong> : elles ressemblent à un chat, sans forcément en être un. C'est un test de <strong>généralisation</strong>.
+              </p>
+              <p className="text-sm text-gray-800 leading-relaxed">
+                Un modèle de vision ne possède pas la notion abstraite de "chat". Il apprend à associer des <strong>motifs visuels</strong> à un label. Quand on lui montre un cas proche mais différent (peluche, dessin, autre animal), il peut classer de façon surprenante, parfois avec beaucoup de confiance.
+              </p>
+              <p className="text-sm text-gray-800 leading-relaxed font-bold bg-brand-dark/10 p-3 rounded border-l-4 border-brand-dark">
+                Ce qu'il faut retenir : la performance d'une IA dépend fortement de ce qu'elle a vu pendant l'entraînement. Pour utiliser un modèle de manière fiable, il faut tester ces cas limites et décider comment gérer l'incertitude.
+              </p>
             </div>
+
+            <Button onClick={() => setStage('CONCLUSION')} className="w-full max-w-sm mx-auto">
+              Voir la conclusion <ArrowRight className="inline ml-2" />
+            </Button>
           </div>
-          <Button onClick={() => setStage('CERTIFICATION')} className="w-full max-w-sm mx-auto">
-            Délivrer le certificat <ArrowRight className="inline ml-2" />
-          </Button>
         </div>
       </div>
     );
   }
 
-  if (stage === 'CERTIFICATION') {
+  if (stage === 'CONCLUSION') {
     const scoreA_T1 = pct(test1Scores.modelACorrect, test1Scores.modelATotal);
     const scoreB_T1 = pct(test1Scores.modelBCorrect, test1Scores.modelBTotal);
-    const scoreA_T2 = stabilityScore(stressResults.modelAStability);
-    const scoreB_T2 = stabilityScore(stressResults.modelBStability);
-    const scoreA_T3 = uncertaintyResults.modelATotal > 0 ? pct(uncertaintyResults.modelATotal - uncertaintyResults.modelAOverconfidentErrors, uncertaintyResults.modelATotal) : 0;
-    const scoreB_T3 = uncertaintyResults.modelBTotal > 0 ? pct(uncertaintyResults.modelBTotal, uncertaintyResults.modelBTotal) : 0;
+    const scoreA_T2 = pct(test2Scores.modelACorrect, test2Scores.modelATotal);
+    const scoreB_T2 = pct(test2Scores.modelBCorrect, test2Scores.modelBTotal);
+    const scoreA_T3 = pct(test3Scores.modelACorrect, test3Scores.modelATotal);
+    const scoreB_T3 = pct(test3Scores.modelBCorrect, test3Scores.modelBTotal);
 
     const resetAll = () => {
       setStage('WELCOME');
       setTest1Index(0); setTest2Index(0); setTest3Index(0);
       setPredA(undefined); setPredB(undefined);
       setHasAnswered(false); setIsAnalyzing(false);
-      setStressState({ blurLevel: 0, darkLevel: 0, cropLevel: 0 });
+      setTest1Phase('IDLE'); setTest2Phase('IDLE'); setTest3Phase('IDLE'); setCompletedTests(new Set());
+      setTest2HasAnswered(false); setPixelatedImageB64(null);
       setTest1Scores({ humanCorrect: 0, humanTotal: 0, modelACorrect: 0, modelATotal: 0, modelBCorrect: 0, modelBTotal: 0 });
-      setStressResults({ modelAStability: [], modelBStability: [] });
-      setUncertaintyResults({ modelAOverconfidentErrors: 0, modelBAbstentions: 0, modelATotal: 0, modelBTotal: 0 });
-    };
-
-    const certify = (model: string) => {
-      if (model === 'B') {
-        alert("Bravo ! Tu as privilegie la fiabilite a la performance pure. C'est la bonne approche en conditions reelles.");
-      } else {
-        alert("Attention ! L'IA A est performante sur des cas standards mais fragile. En conditions reelles, la fiabilite compte plus que la precision brute.");
-      }
+      setTest2Scores({ humanCorrect: 0, humanTotal: 0, modelACorrect: 0, modelATotal: 0, modelBCorrect: 0, modelBTotal: 0 });
+      setTest3Scores({ humanCorrect: 0, humanTotal: 0, modelACorrect: 0, modelATotal: 0, modelBCorrect: 0, modelBTotal: 0 });
+      setTest3IdkCount(0); setTest3FooledImages([]);
     };
 
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-4 md:p-8 relative">
-        <div className="absolute top-10 left-10 opacity-10 pointer-events-none -rotate-12"><Eye size={120} /></div>
-        <div className="absolute bottom-10 right-10 opacity-10 pointer-events-none rotate-12"><ShieldCheck size={120} /></div>
-        <div className="w-full max-w-5xl bg-white border-4 border-black shadow-retro-lg p-6 md:p-10 relative z-10">
-          <div className="text-center mb-10">
-            <h2 className="text-3xl md:text-5xl font-black uppercase tracking-tight mb-2">Passeport de Certification</h2>
-            <p className="font-mono text-gray-600 text-sm md:text-base">Analyse terminée. Sélectionne le modèle le plus fiable.</p>
-          </div>
+      <div className="min-h-screen flex flex-col relative">
+        <div className="absolute inset-0 bg-dot-pattern opacity-50 pointer-events-none"></div>
+        <div className="flex-1 flex flex-col items-center justify-center p-6 z-10">
+          <div className="w-full max-w-6xl bg-white rounded-lg border-4 border-black shadow-retro-lg p-8 space-y-6">
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-16 mb-12">
-            {/* Model A */}
-            <div className="bg-blue-50 border-2 border-blue-900 p-6 rounded-lg relative">
-              <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-brand-blue text-white px-4 py-1 font-bold font-mono text-sm uppercase tracking-widest border-2 border-black">IA A</div>
-              <div className="mt-4 space-y-6">
-                {[
-                  { label: 'Standard (Duel)', score: scoreA_T1, desc: 'images propres' },
-                  { label: 'Robustesse (Stress)', score: scoreA_T2, desc: 'stabilité aux variations' },
-                  { label: 'Prudence (Incertitude)', score: scoreA_T3, desc: '"Je ne sais pas"' },
-                ].map(item => (
-                  <div key={item.label}>
-                    <div className="flex justify-between mb-1">
-                      <span className="font-bold text-sm uppercase">{item.label}</span>
-                      <span className={`font-mono text-sm font-bold ${item.score < 60 ? 'text-red-600' : 'text-gray-800'}`}>{item.score}%</span>
-                    </div>
-                    <div className="w-full bg-blue-200 h-4 border border-black rounded-full overflow-hidden">
-                      <div className="bg-brand-blue h-full animate-fill" style={{ width: `${item.score}%` }}></div>
-                    </div>
-                    <p className="text-xs text-gray-500 mt-1 italic">{item.desc}</p>
-                  </div>
-                ))}
+            {/* Header */}
+            <div className="text-center">
+              <h2 className="text-3xl font-black uppercase tracking-tight mb-1">Conclusion</h2>
+              <p className="font-mono text-gray-500 text-sm">Résumé de l'activité — Chat / Pas Chat</p>
+            </div>
+
+            {/* Stats résumé */}
+            <div className="bg-white border-2 border-black rounded-lg p-4 shadow-retro-sm">
+              <table className="w-full text-sm font-mono">
+                <thead>
+                  <tr className="border-b-2 border-black">
+                    <th className="text-left py-2 text-gray-500 uppercase text-xs">Test</th>
+                    <th className="text-center py-2 text-brand-blue uppercase text-xs">IA A</th>
+                    <th className="text-center py-2 text-brand-orange uppercase text-xs">IA B</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-b border-gray-200">
+                    <td className="py-2">⚡ Rapidité</td>
+                    <td className="text-center font-bold">{scoreA_T1}%</td>
+                    <td className="text-center font-bold">{scoreB_T1}%</td>
+                  </tr>
+                  <tr className="border-b border-gray-200">
+                    <td className="py-2">🔲 Pixélisation</td>
+                    <td className="text-center font-bold">{scoreA_T2}%</td>
+                    <td className="text-center font-bold">{scoreB_T2}%</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2">❓ Faux Amis</td>
+                    <td className="text-center font-bold">{scoreA_T3}%</td>
+                    <td className="text-center font-bold">{scoreB_T3}%</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            {/* Conclusion text */}
+            <div className="bg-white border-2 border-black rounded-lg p-5 shadow-retro-sm space-y-4">
+              <p className="text-sm text-gray-800 leading-relaxed">
+                Tu viens de tester trois façons différentes de reconnaître un objet, toi et deux modèles d'IA, sur la même tâche simple : <strong className="bg-yellow-200 px-1">"chat / pas chat"</strong>. Ce que cette expérience montre, c'est qu'une IA de vision n'a pas une "intelligence générale". Elle apprend à partir d'exemples : elle transforme une image en nombres, puis calcule un score "chat" et un score "pas chat". Quand les images ressemblent à celles qu'elle a vues à l'entraînement, elle peut être très performante. Mais dès qu'on enlève de l'information (flash, pixélisation) ou qu'on change le type d'images (faux amis), ses erreurs deviennent différentes de celles d'un humain.
+              </p>
+              <p className="text-sm text-gray-800 leading-relaxed font-bold bg-brand-dark/10 p-3 rounded border-l-4 border-brand-dark">
+                La qualité d'une IA dépend moins de "sa magie" que de ses données et de ses conditions d'utilisation. Un bon modèle n'est pas celui qui réussit sur des exemples faciles, mais celui qui reste <strong>stable</strong> quand la qualité baisse et qui gère correctement les cas ambigus. C'est aussi pour ça que deux IA "semblables" peuvent se comporter très différemment : elles n'ont pas appris les mêmes régularités, donc elles n'échouent pas dans les mêmes situations.
+              </p>
+            </div>
+
+            {/* 3 Règles à emporter */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-white border-2 border-black rounded-lg p-4 shadow-retro-sm hover:shadow-retro transition-all">
+                <div className="w-8 h-8 bg-yellow-300 border-2 border-black flex items-center justify-center font-black text-sm mb-3">1</div>
+                <h4 className="font-black text-sm uppercase mb-2">Tester hors des cas parfaits</h4>
+                <p className="text-xs text-gray-600 font-mono leading-relaxed">En conditions réelles, la lumière, le cadrage et la qualité varient. Il faut toujours vérifier au-delà des exemples faciles.</p>
               </div>
-              <div className="mt-8">
-                <button onClick={() => certify('A')} className="bg-brand-blue hover:bg-blue-600 text-white font-bold py-3 px-6 w-full border-2 border-black shadow-retro active:shadow-none active:translate-x-1 active:translate-y-1 transition-all uppercase tracking-wide flex items-center justify-center gap-2">
-                  <Stamp size={18} />Certifier IA A
-                </button>
+              <div className="bg-white border-2 border-black rounded-lg p-4 shadow-retro-sm hover:shadow-retro transition-all">
+                <div className="w-8 h-8 bg-yellow-300 border-2 border-black flex items-center justify-center font-black text-sm mb-3">2</div>
+                <h4 className="font-black text-sm uppercase mb-2">Regarder la confiance et les erreurs</h4>
+                <p className="text-xs text-gray-600 font-mono leading-relaxed">Une IA peut être sûre et se tromper. Il faut savoir quels pièges la font tomber pour anticiper ses limites.</p>
+              </div>
+              <div className="bg-white border-2 border-black rounded-lg p-4 shadow-retro-sm hover:shadow-retro transition-all">
+                <div className="w-8 h-8 bg-yellow-300 border-2 border-black flex items-center justify-center font-black text-sm mb-3">3</div>
+                <h4 className="font-black text-sm uppercase mb-2">Prévoir l'incertitude</h4>
+                <p className="text-xs text-gray-600 font-mono leading-relaxed">Quand c'est ambigu, mieux vaut vérifier ou s'abstenir plutôt que forcer une réponse. Être intelligent, c'est être fiable.</p>
               </div>
             </div>
 
-            {/* Model B */}
-            <div className="bg-orange-50 border-2 border-orange-900 p-6 rounded-lg relative">
-              <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-brand-orange text-white px-4 py-1 font-bold font-mono text-sm uppercase tracking-widest border-2 border-black">IA B</div>
-              <div className="mt-4 space-y-6">
-                {[
-                  { label: 'Standard (Duel)', score: scoreB_T1, desc: 'images propres' },
-                  { label: 'Robustesse (Stress)', score: scoreB_T2, desc: 'stabilité aux variations' },
-                  { label: 'Prudence (Incertitude)', score: scoreB_T3, desc: '"Je ne sais pas"' },
-                ].map(item => (
-                  <div key={item.label}>
-                    <div className="flex justify-between mb-1">
-                      <span className="font-bold text-sm uppercase">{item.label}</span>
-                      <span className={`font-mono text-sm font-bold ${item.score >= 80 ? 'text-green-700' : 'text-gray-800'}`}>{item.score}%</span>
-                    </div>
-                    <div className="w-full bg-orange-200 h-4 border border-black rounded-full overflow-hidden">
-                      <div className="bg-brand-orange h-full animate-fill" style={{ width: `${item.score}%` }}></div>
-                    </div>
-                    <p className="text-xs text-gray-500 mt-1 italic">{item.desc}</p>
-                  </div>
-                ))}
-              </div>
-              <div className="mt-8">
-                <button onClick={() => certify('B')} className="bg-brand-orange hover:bg-orange-600 text-white font-bold py-3 px-6 w-full border-2 border-black shadow-retro active:shadow-none active:translate-x-1 active:translate-y-1 transition-all uppercase tracking-wide flex items-center justify-center gap-2">
-                  <Stamp size={18} />Certifier IA B
-                </button>
-              </div>
+            {/* Actions */}
+            <div className="flex justify-center gap-4 pt-2">
+              <button onClick={() => setStage('BONUS_MENU')} className="bg-purple-100 hover:bg-purple-200 text-purple-800 font-bold py-3 px-8 border-2 border-purple-400 shadow-retro active:shadow-none active:translate-x-1 active:translate-y-1 transition-all uppercase text-sm flex items-center gap-2">
+                <Brain size={18} />Petit plus pour les curieux
+              </button>
+              <button onClick={resetAll} className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-3 px-8 border-2 border-black shadow-retro active:shadow-none active:translate-x-1 active:translate-y-1 transition-all uppercase text-sm flex items-center gap-2">
+                <RefreshCw size={18} />Recommencer
+              </button>
             </div>
-          </div>
 
-          <div className="border-t-4 border-dashed border-gray-300 pt-8">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-              <div className="flex-1">
-                <h3 className="font-black text-lg uppercase mb-4 flex items-center gap-2 text-gray-800">
-                  <ShieldCheck size={24} />3 Règles à emporter
-                </h3>
-                <ul className="space-y-3 font-mono text-sm text-gray-700">
-                  {[
-                    'Tester au-delà des cas faciles.',
-                    'Vérifier la robustesse aux variations.',
-                    "Gérer l'incertitude (ne pas forcer une réponse).",
-                  ].map((rule, i) => (
-                    <li key={i} className="flex items-start gap-3">
-                      <div className="w-5 h-5 border-2 border-black flex items-center justify-center bg-yellow-300 flex-shrink-0">
-                        <span className="font-bold text-xs">{i + 1}</span>
-                      </div>
-                      <span>{rule}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <div className="flex flex-col gap-3 w-full md:w-auto">
-                <button onClick={() => setStage('BONUS_MENU')} className="w-full md:w-auto bg-purple-100 hover:bg-purple-200 text-purple-800 font-bold py-3 px-8 border-2 border-purple-400 shadow-retro active:shadow-none active:translate-x-1 active:translate-y-1 transition-all uppercase text-sm flex items-center justify-center gap-2">
-                  <Brain size={18} />Petit plus pour les curieux
-                </button>
-                <button onClick={resetAll} className="w-full md:w-auto bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-3 px-8 border-2 border-black shadow-retro active:shadow-none active:translate-x-1 active:translate-y-1 transition-all uppercase text-sm flex items-center justify-center gap-2">
-                  <RefreshCw size={18} />Recommencer
-                </button>
-              </div>
-            </div>
           </div>
         </div>
       </div>
@@ -934,8 +1044,8 @@ const App: React.FC = () => {
           </div>
 
           <div className="text-center pt-6">
-            <button onClick={() => setStage('CERTIFICATION')} className="text-gray-500 hover:text-gray-800 font-mono text-sm underline">
-              Retour à la certification
+            <button onClick={() => setStage('CONCLUSION')} className="text-gray-500 hover:text-gray-800 font-mono text-sm underline">
+              Retour à la conclusion
             </button>
           </div>
         </div>
@@ -1071,8 +1181,8 @@ const App: React.FC = () => {
 
           <div className="flex justify-center gap-4">
             <button onClick={() => setStage('BONUS_MENU')} className="text-gray-500 hover:text-black font-mono text-sm underline uppercase">Retour au menu bonus</button>
-            <Button onClick={() => setStage('CERTIFICATION')}>
-              Retour à la certification
+            <Button onClick={() => setStage('CONCLUSION')}>
+              Retour à la conclusion
             </Button>
           </div>
         </div>
@@ -1159,8 +1269,8 @@ const App: React.FC = () => {
 
           <div className="flex justify-center gap-4">
             <button onClick={() => setStage('BONUS_MENU')} className="text-gray-500 hover:text-black font-mono text-sm underline uppercase">Retour au menu bonus</button>
-            <Button onClick={() => setStage('CERTIFICATION')}>
-              Retour à la certification
+            <Button onClick={() => setStage('CONCLUSION')}>
+              Retour à la conclusion
             </Button>
           </div>
         </div>

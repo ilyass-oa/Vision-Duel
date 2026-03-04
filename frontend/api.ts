@@ -17,11 +17,18 @@ export interface PredictionResponse {
     truth: string;
     model_a: ModelPrediction;
     model_b: ModelPrediction;
+    transformed_base64?: string;
 }
 
 export async function fetchAllImages(): Promise<ActivityImage[]> {
     const res = await fetch(`${API_BASE}/activity/images`);
     if (!res.ok) throw new Error("Failed to fetch images");
+    return res.json();
+}
+
+export async function fetchLookAlikeImages(): Promise<ActivityImage[]> {
+    const res = await fetch(`${API_BASE}/activity/lookalike`);
+    if (!res.ok) throw new Error("Failed to fetch lookalike images");
     return res.json();
 }
 

@@ -7,9 +7,10 @@ interface AICardProps {
   loading?: boolean;
   highlightStability?: boolean;
   showUncertainty?: boolean;
+  masked?: boolean;
 }
 
-export const AICard: React.FC<AICardProps> = ({ model, prediction, loading, highlightStability, showUncertainty }) => {
+export const AICard: React.FC<AICardProps> = ({ model, prediction, loading, highlightStability, showUncertainty, masked }) => {
   const isA = model.id === 'A';
   const borderColor = isA ? 'border-brand-blue' : 'border-brand-orange';
   const bgColor = isA ? 'bg-blue-50' : 'bg-orange-50';
@@ -60,12 +61,18 @@ export const AICard: React.FC<AICardProps> = ({ model, prediction, loading, high
           <div className="space-y-4 animate-fade-in">
             {/* Label */}
             <div className="text-center">
-              <div className={`inline-block px-6 py-2 rounded-lg border-2 border-black font-black text-xl uppercase tracking-wider shadow-sm ${prediction.label === 'CHAT' ? 'bg-green-200 text-green-900' :
+              {masked ? (
+                <div className="inline-block px-6 py-2 rounded-lg border-2 border-dashed border-gray-400 font-black text-xl uppercase tracking-wider shadow-sm bg-gray-100 text-gray-500 tracking-[0.2em]">
+                  ???
+                </div>
+              ) : (
+                <div className={`inline-block px-6 py-2 rounded-lg border-2 border-black font-black text-xl uppercase tracking-wider shadow-sm ${prediction.label === 'CHAT' ? 'bg-green-200 text-green-900' :
                   prediction.label === 'INCERTAIN' ? 'bg-yellow-200 text-yellow-900 animate-pulse' :
                     'bg-red-200 text-red-900'
-                }`}>
-                {prediction.label}
-              </div>
+                  }`}>
+                  {prediction.label}
+                </div>
+              )}
             </div>
 
             {/* Confidence bar */}
@@ -79,8 +86,8 @@ export const AICard: React.FC<AICardProps> = ({ model, prediction, loading, high
               <div className="w-full h-3 bg-gray-200 rounded-full border border-black overflow-hidden">
                 <div
                   className={`h-full transition-all duration-500 rounded-full ${prediction.confidence >= 90 ? 'bg-green-500' :
-                      prediction.confidence >= 70 ? 'bg-yellow-400' :
-                        'bg-red-400'
+                    prediction.confidence >= 70 ? 'bg-yellow-400' :
+                      'bg-red-400'
                     }`}
                   style={{ width: `${prediction.confidence}%` }}
                 />
@@ -88,12 +95,12 @@ export const AICard: React.FC<AICardProps> = ({ model, prediction, loading, high
             </div>
 
             {/* Stability indicator */}
-            {highlightStability && prediction.stability && (
+            {!masked && highlightStability && prediction.stability && (
               <div className="mt-2">{stabilityDisplay(prediction.stability)}</div>
             )}
 
             {/* Uncertainty indicator */}
-            {showUncertainty && prediction.label === 'INCERTAIN' && (
+            {!masked && showUncertainty && prediction.label === 'INCERTAIN' && (
               <div className="bg-yellow-50 border border-yellow-400 rounded p-2 text-center">
                 <span className="text-xs font-mono text-yellow-700 font-bold uppercase">Cette IA s'abstient</span>
               </div>
@@ -101,7 +108,7 @@ export const AICard: React.FC<AICardProps> = ({ model, prediction, loading, high
           </div>
         ) : (
           <div className="text-center py-6">
-            <span className="text-gray-400 font-mono text-sm uppercase tracking-wider">En attente</span>
+            <span className="text-gray-400 font-mono text-sm uppercase tracking-wider">Prêt pour le test</span>
           </div>
         )}
       </div>

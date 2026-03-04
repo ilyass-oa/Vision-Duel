@@ -7,7 +7,7 @@ export type ScreenStage =
   | 'RESULT_2'
   | 'TEST_3_UNCERTAINTY'
   | 'RESULT_3'
-  | 'CERTIFICATION'
+  | 'CONCLUSION'
   | 'BONUS_MENU'
   | 'BONUS_A1'
   | 'BONUS_A2'

@@ -19,9 +19,9 @@ export const MODEL_B: AIModel = {
 };
 
 // Image counts per test phase
-export const TEST_1_COUNT = 8;
-export const TEST_2_COUNT = 3;
-export const TEST_3_COUNT = 6;
+export const TEST_1_COUNT = 5;
+export const TEST_2_COUNT = 5;
+export const TEST_3_COUNT = 5;
 
 // Uncertainty threshold for "INCERTAIN" label (confidence below this → abstain)
 export const UNCERTAINTY_THRESHOLD = 70; // percent
