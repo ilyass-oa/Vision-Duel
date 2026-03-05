@@ -291,6 +291,7 @@ const App: React.FC = () => {
       .catch(err => {
         console.error("Test 2 Prediction error:", err);
         setIsAnalyzing(false);
+        setTest2Phase('PIXELATED_VIEW');
       });
   }, [stage, test2Phase, test2Images, test2Index]);
 
@@ -743,7 +744,7 @@ const App: React.FC = () => {
         <StageProgress currentStage={2} totalStages={3} title="Test 2 : Pixélisation" subtitle={`Image ${test2Index + 1} / ${test2Images.length} — Difficulté: ${level}`} />
         <div className="flex-1 flex flex-col md:flex-row p-6 gap-8 max-w-7xl mx-auto w-full">
           <div className="flex-[2] flex flex-col justify-center space-y-6">
-            <div className="relative aspect-square md:aspect-video bg-gray-900 rounded-lg overflow-hidden shadow-retro border-4 border-black p-2 bg-white">
+            <div className="relative aspect-square md:aspect-video bg-gray-900 rounded-lg overflow-hidden shadow-retro border-4 border-black p-2 bg-white" style={{ maxHeight: '50vh' }}>
               <div className="w-full h-full border-2 border-black overflow-hidden relative bg-black">
                 {test2Phase !== 'IDLE' && (
                   <>
@@ -875,7 +876,7 @@ const App: React.FC = () => {
         </div>
         <div className="flex-1 flex flex-col md:flex-row p-6 gap-8 max-w-7xl mx-auto w-full">
           <div className="flex-[2] flex flex-col justify-center space-y-6">
-            <div className="relative aspect-square md:aspect-video bg-gray-100 rounded-lg overflow-hidden shadow-retro border-4 border-black p-2 bg-white">
+            <div className="relative aspect-square md:aspect-video bg-gray-100 rounded-lg overflow-hidden shadow-retro border-4 border-black p-2 bg-white" style={{ maxHeight: '50vh' }}>
               <div className="w-full h-full border-2 border-black overflow-hidden relative">
                 {test3Phase === 'STARTED' && (
                   <>
@@ -893,13 +894,13 @@ const App: React.FC = () => {
             {test3Phase === 'IDLE' ? (
               <Button onClick={() => setTest3Phase('STARTED')} className="w-full h-20 text-xl font-bold">Lancer le duel</Button>
             ) : !hasAnswered ? (
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-3 gap-4" style={{ position: 'relative', zIndex: 10 }}>
                 <Button onClick={() => handleTest3Answer('PAS_CHAT')} disabled={isAnalyzing} variant="secondary" className="text-lg h-16">PAS CHAT</Button>
                 <Button onClick={() => handleTest3Answer('IDK')} disabled={isAnalyzing} className="bg-brand-dark text-white hover:bg-black border-2 border-black text-lg h-16">JE NE SAIS PAS</Button>
                 <Button onClick={() => handleTest3Answer('CHAT')} disabled={isAnalyzing} className="text-lg h-16">CHAT</Button>
               </div>
             ) : (
-              <div className="flex justify-center">
+              <div className="flex justify-center" style={{ position: 'relative', zIndex: 10 }}>
                 <Button onClick={goToNextTest3} className="px-12 py-4 text-lg">
                   {test3Index < test3Images.length - 1 ? 'Suivant' : 'Voir les resultats'} <ArrowRight className="inline ml-2" size={20} />
                 </Button>
