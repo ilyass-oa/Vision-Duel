@@ -3,6 +3,7 @@ import os
 import sys
 import random
 import tempfile
+from pathlib import Path
 
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
@@ -18,6 +19,7 @@ from core.predictor import Predictor
 
 PROJECT_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 ACTIVITY_IMAGES_DIR = os.path.join(PROJECT_ROOT, "resources", "dataset", "activity_images")
+LOOKALIKE_DIR = os.path.join(ACTIVITY_IMAGES_DIR, "LookAlike")
 MODEL_A_CKPT = os.path.join(PROJECT_ROOT, "runs", "model_a", "best.pt")
 MODEL_B_CKPT = os.path.join(PROJECT_ROOT, "runs", "model_b", "best.pt")
 
@@ -69,9 +71,31 @@ def discover_images():
     return images
 
 
+def discover_lookalike_images():
+    """List LookAlike images — all are PAS_CHAT (faux amis)."""
+    images = []
+    if not os.path.exists(LOOKALIKE_DIR):
+        return images
+    for fname in sorted(os.listdir(LOOKALIKE_DIR)):
+        ext = os.path.splitext(fname)[1].lower()
+        if ext not in VALID_EXT:
+            continue
+        path = os.path.join(LOOKALIKE_DIR, fname)
+        images.append({
+            "id": f"LookAlike/{fname}",
+            "url": f"/static/activity/LookAlike/{fname}",
+            "truth": "PAS_CHAT",
+            "path": path,
+        })
+    return images
+
+
 print(f"Activity images dir: {ACTIVITY_IMAGES_DIR}")
 ALL_IMAGES = discover_images()
-print(f"Found {len(ALL_IMAGES)} activity images")
+LOOKALIKE_IMAGES = discover_lookalike_images()
+# Add lookalike images to ALL_IMAGES so predict() can find them
+ALL_IMAGES.extend(LOOKALIKE_IMAGES)
+print(f"Found {len(ALL_IMAGES)} total images ({len(LOOKALIKE_IMAGES)} lookalike)")
 for img in ALL_IMAGES:
     print(f"  {img['id']}: {img['truth']}")
 
@@ -83,12 +107,59 @@ def serve_activity_image(filename):
     return send_from_directory(ACTIVITY_IMAGES_DIR, filename)
 
 
+MODEL_A_DATA = os.path.join(PROJECT_ROOT, "resources", "dataset", "model_a_data")
+MODEL_B_DATA = os.path.join(PROJECT_ROOT, "resources", "dataset", "model_b_data")
+
+
+@app.route("/static/training/<path:filename>")
+def serve_training_image(filename):
+    """Serve training images from model_a_data or model_b_data."""
+    if filename.startswith("a/"):
+        return send_from_directory(MODEL_A_DATA, filename[2:])
+    elif filename.startswith("b/"):
+        return send_from_directory(MODEL_B_DATA, filename[2:])
+    return jsonify({"error": "Invalid path"}), 404
+
+
+def sample_training_images(data_dir, prefix, count=8):
+    """Pick a few sample CHAT images."""
+    samples = []
+    cls_dir = os.path.join(data_dir, "CHAT")
+    if os.path.exists(cls_dir):
+        files = [f for f in os.listdir(cls_dir) if os.path.splitext(f)[1].lower() in VALID_EXT]
+        chosen = random.sample(files, min(count, len(files)))
+        for fname in chosen:
+            samples.append({
+                "url": f"/static/training/{prefix}/CHAT/{fname}",
+                "label": "CHAT",
+            })
+    return samples
+
+
+@app.route("/api/training-samples")
+def training_samples():
+    """Return sample training images for both models."""
+    return jsonify({
+        "model_a": sample_training_images(MODEL_A_DATA, "a", count=4),
+        "model_b": sample_training_images(MODEL_B_DATA, "b", count=4),
+    })
+
+
 @app.route("/api/activity/images", methods=["GET"])
 def list_images():
-    """Return all activity images with ground truth labels."""
+    """Return all activity images (excluding lookalike) with ground truth labels."""
     return jsonify([
         {"id": img["id"], "url": img["url"], "truth": img["truth"]}
-        for img in ALL_IMAGES
+        for img in ALL_IMAGES if not img["id"].startswith("LookAlike/")
+    ])
+
+
+@app.route("/api/activity/lookalike", methods=["GET"])
+def list_lookalike_images():
+    """Return LookAlike images for Test 3 (Faux Amis)."""
+    return jsonify([
+        {"id": img["id"], "url": img["url"], "truth": img["truth"]}
+        for img in LOOKALIKE_IMAGES
     ])
 
 
@@ -150,15 +221,26 @@ def transform_and_predict():
                 margin_w, margin_h = int(w * 0.25), int(h * 0.25)
                 pil_img = pil_img.crop((margin_w, margin_h, w - margin_w, h - margin_h))
                 pil_img = pil_img.resize((w, h))
+            elif t.startswith("pixelate"):
+                level = t.split("_")[1] if "_" in t else "medium"
+                w, h = pil_img.size
+                factors = {"light": 8, "medium": 15, "heavy": 25}
+                factor = factors.get(level, 15)
+                pil_img = pil_img.resize((w // factor, h // factor), resample=Image.Resampling.BILINEAR)
+                pil_img = pil_img.resize((w, h), resample=Image.Resampling.NEAREST)
 
     # Save transformed image to temp file and predict
-    with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as f:
-        tmp_path = f.name
-        pil_img.save(f, format="JPEG")
+    tmp_fd, tmp_path = tempfile.mkstemp(suffix=".jpg")
+    os.close(tmp_fd)
+    pil_img.save(tmp_path, format="JPEG")
 
     try:
         stressed_a = predictor_a.predict_image(tmp_path)
         stressed_b = predictor_b.predict_image(tmp_path)
+        
+        import base64
+        with open(tmp_path, "rb") as img_file:
+            transformed_b64 = base64.b64encode(img_file.read()).decode('utf-8')
     finally:
         os.unlink(tmp_path)
 
@@ -183,6 +265,7 @@ def transform_and_predict():
             "confidence": round(stressed_b.prob * 100, 1),
             "stability": stability(original_pred_b, stressed_b),
         },
+        "transformed_base64": transformed_b64,
     })
 
 
