@@ -32,6 +32,17 @@ export async function fetchLookAlikeImages(): Promise<ActivityImage[]> {
     return res.json();
 }
 
+export interface TrainingSample {
+    url: string;
+    label: string;
+}
+
+export async function fetchTrainingSamples(): Promise<{ model_a: TrainingSample[], model_b: TrainingSample[] }> {
+    const res = await fetch(`${API_BASE}/training-samples`);
+    if (!res.ok) throw new Error("Failed to fetch training samples");
+    return res.json();
+}
+
 export async function fetchPredictions(imageId: string): Promise<PredictionResponse> {
     const res = await fetch(`${API_BASE}/predict`, {
         method: "POST",
