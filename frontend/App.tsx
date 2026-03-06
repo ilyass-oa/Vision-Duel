@@ -5,7 +5,7 @@ import { fetchAllImages, fetchLookAlikeImages, fetchTrainingSamples, fetchPredic
 import { Button } from './components/Button';
 import { AICard } from './components/AICard';
 import { StageProgress } from './components/StageProgress';
-import { ArrowRight, CheckCircle, AlertTriangle, ShieldCheck, Eye, RefreshCw, Sun, Crop, Aperture, Stamp, Brain, Sparkles, BookOpen, Wrench } from 'lucide-react';
+import { ArrowRight, CheckCircle, AlertTriangle, ShieldCheck, Eye, RefreshCw, Sun, Crop, Aperture, Stamp, Brain, Sparkles, BookOpen, Wrench, Cat, Swords } from 'lucide-react';
 
 // Standalone component for Bonus A2 to avoid conditional hooks
 const BonusA2Screen: React.FC<{ onNext: () => void }> = ({ onNext }) => {
@@ -459,12 +459,12 @@ const App: React.FC = () => {
           <Eye size={120} />
         </div>
         <div className="absolute bottom-10 right-10 opacity-10 pointer-events-none rotate-12">
-          <ShieldCheck size={120} />
+          <Cat size={120} />
         </div>
         <div className="max-w-2xl w-full bg-white border-4 border-black shadow-retro-lg p-10 rounded-lg animate-fade-in relative z-10">
           <div className="space-y-6">
             <div className="inline-block p-4 rounded-full border-2 border-black bg-app-bg shadow-retro-sm mb-4">
-              <ShieldCheck size={64} className="text-brand-dark" />
+              <Swords size={64} className="text-brand-dark" />
             </div>
             <h1 className="text-5xl md:text-6xl font-black tracking-tighter text-brand-dark uppercase">
               Vision-Duel
