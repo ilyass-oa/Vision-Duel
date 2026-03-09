@@ -3,6 +3,21 @@ set -e
 
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
+# Prefer the project virtual environment when available.
+VENV_PYTHON="$PROJECT_DIR/.venv/bin/python"
+if [ -x "$VENV_PYTHON" ]; then
+  PYTHON_BIN="$VENV_PYTHON"
+else
+  PYTHON_BIN="$(command -v python3 || command -v python || true)"
+fi
+
+if [ -z "$PYTHON_BIN" ]; then
+  echo "Python not found. Install Python 3 or create .venv in $PROJECT_DIR"
+  exit 1
+fi
+
+echo "Using Python interpreter: $PYTHON_BIN"
+
 # Check if models need retraining (if dataset is newer than checkpoint)
 # We check both files and directories to detect deletions (which update dir mtime)
 # Use %Ts for integer seconds to avoid needing 'bc' for float comparison
@@ -29,12 +44,12 @@ if [ ! -f "$PROJECT_DIR/runs/model_a/best.pt" ] || [ ! -f "$PROJECT_DIR/runs/mod
 
   # Prepare datasets
   cd "$PROJECT_DIR/backend"
-  PYTHONPATH="$PROJECT_DIR/backend" python scripts/prepare_datasets.py
+  PYTHONPATH="$PROJECT_DIR/backend" "$PYTHON_BIN" scripts/prepare_datasets.py
 
   # Train Model A (specialist, clean only)
   if [ ! -f "$PROJECT_DIR/runs/model_a/best.pt" ]; then
     echo "Training Model A (specialist)..."
-    PYTHONPATH="$PROJECT_DIR/backend" python image_classifier/train.py \
+    PYTHONPATH="$PROJECT_DIR/backend" "$PYTHON_BIN" image_classifier/train.py \
       --data_dir "$PROJECT_DIR/resources/dataset/model_a_data" \
       --out_dir "$PROJECT_DIR/runs/model_a" \
       --epochs 10 --batch_size 16 --lr 0.001
@@ -43,7 +58,7 @@ if [ ! -f "$PROJECT_DIR/runs/model_a/best.pt" ] || [ ! -f "$PROJECT_DIR/runs/mod
   # Train Model B (robust, clean + mixed)
   if [ ! -f "$PROJECT_DIR/runs/model_b/best.pt" ]; then
     echo "Training Model B (robust)..."
-    PYTHONPATH="$PROJECT_DIR/backend" python image_classifier/train.py \
+    PYTHONPATH="$PROJECT_DIR/backend" "$PYTHON_BIN" image_classifier/train.py \
       --data_dir "$PROJECT_DIR/resources/dataset/model_b_data" \
       --out_dir "$PROJECT_DIR/runs/model_b" \
       --epochs 10 --batch_size 16 --lr 0.001
@@ -61,7 +76,7 @@ fi
 # Start backend
 echo "Starting backend on port 5000..."
 cd "$PROJECT_DIR/backend"
-PYTHONPATH="$PROJECT_DIR/backend" python app.py &
+PYTHONPATH="$PROJECT_DIR/backend" "$PYTHON_BIN" app.py &
 BACKEND_PID=$!
 
 # Start frontend
