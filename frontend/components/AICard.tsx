@@ -38,15 +38,15 @@ export const AICard: React.FC<AICardProps> = ({ model, prediction, loading, high
   };
 
   return (
-    <div className={`${bgColor} border-2 ${borderColor} rounded-lg p-5 h-full flex flex-col shadow-retro-sm relative`}>
+    <div className={`${bgColor} border-2 ${borderColor} rounded-lg p-3 md:p-5 h-full flex flex-col shadow-retro-sm relative`}>
       {/* Header */}
-      <div className="flex items-center gap-3 mb-4 pb-3 border-b border-gray-200">
-        <div className={`w-12 h-12 rounded-full bg-${accentColor} border-2 border-black flex items-center justify-center text-xl font-black text-white shadow-sm`}>
+      <div className="flex items-center gap-2 md:gap-3 mb-3 md:mb-4 pb-2 md:pb-3 border-b border-gray-200">
+        <div className={`w-10 h-10 md:w-12 md:h-12 rounded-full bg-${accentColor} border-2 border-black flex items-center justify-center text-lg md:text-xl font-black text-white shadow-sm`}>
           {model.avatar}
         </div>
         <div>
-          <h3 className="font-black text-lg leading-none uppercase tracking-tight">{model.name}</h3>
-          <span className="text-xs text-gray-500 font-mono uppercase">{model.type}</span>
+          <h3 className="font-black text-base md:text-lg leading-none uppercase tracking-tight">{model.name}</h3>
+          <span className="text-[10px] md:text-xs text-gray-500 font-mono uppercase">{model.type}</span>
         </div>
       </div>
 

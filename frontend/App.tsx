@@ -1,11 +1,23 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ScreenStage, StressState, Prediction, ActivityImage, TestScores, StressResult, UncertaintyResult } from './types';
 import { MODEL_A, MODEL_B, TEST_1_COUNT, TEST_2_COUNT, TEST_3_COUNT, UNCERTAINTY_THRESHOLD, TRAINING_METRICS } from './constants';
-import { fetchAllImages, fetchLookAlikeImages, fetchTrainingSamples, fetchPredictions, fetchTransformedPredictions, TrainingSample } from './api';
+import {
+  fetchAllImages,
+  fetchLookAlikeImages,
+  fetchTrainingSamples,
+  fetchPredictions,
+  fetchTransformedPredictions,
+  fetchLabInfo,
+  trainLabModel,
+  fetchLabPrediction,
+  TrainingSample,
+  LabInfoResponse,
+  LabTrainResponse,
+} from './api';
 import { Button } from './components/Button';
 import { AICard } from './components/AICard';
 import { StageProgress } from './components/StageProgress';
-import { ArrowRight, CheckCircle, AlertTriangle, ShieldCheck, Eye, RefreshCw, Sun, Crop, Aperture, Stamp, Brain, Sparkles, BookOpen, Wrench, Cat, Swords } from 'lucide-react';
+import { ArrowRight, ShieldCheck, Eye, RefreshCw, Sun, Crop, Aperture, Stamp, Brain, Sparkles, BookOpen, Wrench, Cat, Swords } from 'lucide-react';
 
 // Standalone component for Bonus A2 to avoid conditional hooks
 const BonusA2Screen: React.FC<{ onNext: () => void }> = ({ onNext }) => {
@@ -41,12 +53,12 @@ const BonusA2Screen: React.FC<{ onNext: () => void }> = ({ onNext }) => {
   }).join(' ');
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-8 relative">
+    <div className="min-h-screen flex flex-col items-center justify-center p-4 md:p-8 relative">
       <div className="absolute inset-0 bg-dot-pattern opacity-50 pointer-events-none"></div>
-      <div className="max-w-3xl w-full bg-white rounded-lg border-4 border-black shadow-retro-lg p-10 space-y-8 animate-fade-in z-10">
+      <div className="max-w-3xl w-full bg-white rounded-lg border-2 md:border-4 border-black shadow-retro-lg p-6 md:p-10 space-y-4 md:space-y-8 animate-fade-in z-10">
         <div className="text-center">
-          <span className="bg-indigo-100 text-indigo-700 px-4 py-1 rounded-full border border-indigo-300 font-mono text-xs font-bold uppercase">Bonus A - Écran 2/3</span>
-          <h2 className="text-3xl font-black uppercase tracking-tight mt-4">Pendant l'apprentissage</h2>
+          <span className="bg-indigo-100 text-indigo-700 px-3 md:px-4 py-1 rounded-full border border-indigo-300 font-mono text-xs font-bold uppercase">Bonus A - Écran 2/3</span>
+          <h2 className="text-2xl md:text-3xl font-black uppercase tracking-tight mt-3 md:mt-4">Pendant l'apprentissage</h2>
         </div>
 
         <div className="bg-gray-50 border-2 border-black rounded-lg p-6">
@@ -113,6 +125,7 @@ const BonusA2Screen: React.FC<{ onNext: () => void }> = ({ onNext }) => {
 type Test1Phase = 'IDLE' | 'COUNTDOWN' | 'FLASHING' | 'ANSWERING' | 'REVEALED';
 type Test2Phase = 'IDLE' | 'LOADING' | 'PIXELATED_VIEW' | 'TRUTH_REVEAL';
 type Test3Phase = 'IDLE' | 'STARTED';
+type LabOverlayPrediction = { chatPct: number; pasChatPct: number };
 
 const App: React.FC = () => {
   const [stage, setStage] = useState<ScreenStage>('WELCOME');
@@ -167,6 +180,16 @@ const App: React.FC = () => {
   const [trainingSamplesB, setTrainingSamplesB] = useState<TrainingSample[]>([]);
   const [allImages, setAllImages] = useState<ActivityImage[]>([]);
 
+  // Lab activity state (new standalone activity)
+  const [labInfo, setLabInfo] = useState<LabInfoResponse | null>(null);
+  const [labSelectedSize, setLabSelectedSize] = useState(500);
+  const [labTraining, setLabTraining] = useState<LabTrainResponse | null>(null);
+  const [labTrainLoading, setLabTrainLoading] = useState(false);
+  const [labPredictLoading, setLabPredictLoading] = useState(false);
+  const [labImages, setLabImages] = useState<ActivityImage[]>([]);
+  const [labPredictions, setLabPredictions] = useState<Record<string, LabOverlayPrediction>>({});
+  const [labError, setLabError] = useState<string | null>(null);
+
   // Bonus C state
   const [bonusCFailure, setBonusCFailure] = useState<'DARK' | 'CROP' | 'FAUX_AMI' | null>(null);
   const [bonusCDiagnosis, setBonusCDiagnosis] = useState<string | null>(null);
@@ -182,6 +205,8 @@ const App: React.FC = () => {
         const t2End = Math.min(t1End + TEST_2_COUNT, n);
         setTest1Images(shuffled.slice(0, t1End));
         setTest2Images(shuffled.slice(t1End, t2End));
+        // 4 images are sampled once at app load for the simplified lab activity.
+        setLabImages(shuffled.slice(0, Math.min(4, shuffled.length)));
       })
       .catch(err => console.error("Failed to load images:", err));
 
@@ -201,6 +226,18 @@ const App: React.FC = () => {
       })
       .catch(err => console.error("Failed to load training samples:", err));
   }, []);
+
+  useEffect(() => {
+    fetchLabInfo()
+      .then(info => setLabInfo(info))
+      .catch(err => console.error("Failed to load lab info:", err));
+  }, []);
+
+  useEffect(() => {
+    if (labInfo?.levels?.length && !labInfo.levels.includes(labSelectedSize)) {
+      setLabSelectedSize(labInfo.levels[0]);
+    }
+  }, [labInfo, labSelectedSize]);
 
   // Test 1: DUEL (State Machine)
   // Phase 1: Countdown
@@ -234,7 +271,7 @@ const App: React.FC = () => {
 
     const timer = setTimeout(() => {
       setTest1Phase('ANSWERING');
-    }, 40);
+    }, 70);
     return () => clearTimeout(timer);
   }, [stage, test1Phase, predA, isAnalyzing, test1Images, test1Index]);
 
@@ -380,6 +417,50 @@ const App: React.FC = () => {
     }
   };
 
+  // Lab activity: train a simple model with increasing dataset sizes
+  const trainLab = async () => {
+    setLabTrainLoading(true);
+    setLabPredictLoading(false);
+    setLabError(null);
+    setLabPredictions({});
+    try {
+      const result = await trainLabModel(labSelectedSize);
+      setLabTraining(result);
+
+      if (labImages.length === 0) {
+        setLabError("Aucune image de démonstration disponible pour afficher les pourcentages.");
+        return;
+      }
+
+      setLabPredictLoading(true);
+      const overlays = await Promise.all(
+        labImages.map(async (img) => {
+          const prediction = await fetchLabPrediction(img.id);
+          const chatPct = prediction.model.label === 'CHAT'
+            ? prediction.model.confidence
+            : 100 - prediction.model.confidence;
+          const pasChatPct = 100 - chatPct;
+
+          return [
+            img.id,
+            {
+              chatPct: Number(chatPct.toFixed(1)),
+              pasChatPct: Number(pasChatPct.toFixed(1)),
+            },
+          ] as const;
+        })
+      );
+
+      setLabPredictions(Object.fromEntries(overlays));
+    } catch (err) {
+      console.error("Lab training failed:", err);
+      setLabError("Impossible d'entraîner le modèle. Réessayez dans quelques secondes.");
+    } finally {
+      setLabTrainLoading(false);
+      setLabPredictLoading(false);
+    }
+  };
+
   // Computed stats
   const pct = (n: number, t: number) => t > 0 ? Math.round((n / t) * 100) : 0;
 
@@ -454,30 +535,31 @@ const App: React.FC = () => {
 
   if (stage === 'WELCOME') {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-8 text-center relative overflow-hidden">
-        <div className="absolute top-10 left-10 opacity-10 pointer-events-none -rotate-12">
+      <div className="min-h-screen flex flex-col items-center justify-center p-4 md:p-8 text-center relative overflow-hidden">
+        <div className="absolute top-10 left-10 opacity-10 pointer-events-none -rotate-12 hidden md:block">
           <Eye size={120} />
         </div>
-        <div className="absolute bottom-10 right-10 opacity-10 pointer-events-none rotate-12">
+        <div className="absolute bottom-10 right-10 opacity-10 pointer-events-none rotate-12 hidden md:block">
           <Cat size={120} />
         </div>
-        <div className="max-w-2xl w-full bg-white border-4 border-black shadow-retro-lg p-10 rounded-lg animate-fade-in relative z-10">
-          <div className="space-y-6">
-            <div className="inline-block p-4 rounded-full border-2 border-black bg-app-bg shadow-retro-sm mb-4">
-              <Swords size={64} className="text-brand-dark" />
+        <div className="max-w-2xl w-full bg-white border-4 border-black shadow-retro-lg p-6 md:p-10 rounded-lg animate-fade-in relative z-10">
+          <div className="space-y-4 md:space-y-6">
+            <div className="inline-block p-3 md:p-4 rounded-full border-2 border-black bg-app-bg shadow-retro-sm mb-2 md:mb-4">
+              <Swords size={48} className="md:hidden text-brand-dark" />
+              <Swords size={64} className="hidden md:block text-brand-dark" />
             </div>
-            <h1 className="text-5xl md:text-6xl font-black tracking-tighter text-brand-dark uppercase">
+            <h1 className="text-3xl md:text-5xl lg:text-6xl font-black tracking-tighter text-brand-dark uppercase">
               Vision-Duel
             </h1>
             <div className="h-1 w-24 bg-black mx-auto"></div>
-            <p className="text-xl text-gray-600 font-mono">Bureau d'Analyse IA</p>
-            <p className="text-lg text-gray-500 font-medium">
+            <p className="text-base md:text-xl text-gray-600 font-mono">Bureau d'Analyse IA</p>
+            <p className="text-sm md:text-lg text-gray-500 font-medium">
               Tu vas tester deux IA sur la même tâche : reconnaître un chat.<br />
               Trois épreuves. Un verdict.
             </p>
           </div>
-          <div className="mt-12 space-y-4">
-            <Button onClick={() => setStage('BRIEFING')} className="text-xl px-12 py-4 w-full max-w-sm mx-auto">
+          <div className="mt-6 md:mt-12 space-y-3 md:space-y-4">
+            <Button onClick={() => setStage('BRIEFING')} className="text-base md:text-xl px-8 md:px-12 py-3 md:py-4 w-full max-w-sm mx-auto">
               Démarrer l'inspection
             </Button>
             <button onClick={() => setStage('BONUS_MENU')} className="block mx-auto text-sm text-gray-400 hover:text-gray-700 font-mono underline transition-colors">
@@ -489,13 +571,128 @@ const App: React.FC = () => {
     );
   }
 
+  if (stage === 'LAB_TRAINER') {
+    const levels = labInfo?.levels?.length ? labInfo.levels : [250, 500, 700, 1000];
+
+    return (
+      <div className="min-h-screen flex flex-col p-4 md:p-8 relative">
+        <div className="absolute inset-0 bg-dot-pattern opacity-45 pointer-events-none"></div>
+
+        <div className="max-w-6xl w-full mx-auto bg-white border-2 md:border-4 border-black rounded-lg shadow-retro-lg p-4 md:p-8 space-y-4 md:space-y-6 z-10">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <div>
+              <h2 className="text-2xl md:text-4xl font-black uppercase tracking-tight">Entraîne ton IA</h2>
+              <p className="text-sm text-gray-600 font-mono mt-1">
+                Choisis une taille d'entrainement puis regarde les pourcentages de l'IA sur 4 images tirees au hasard au lancement du site.
+              </p>
+            </div>
+            <Button variant="secondary" onClick={() => setStage('BONUS_MENU')} className="text-sm md:text-base px-4 py-2">
+              Retour bonus
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+            <div className="bg-gray-50 border-2 border-black rounded-lg p-4 space-y-4">
+              <h3 className="text-lg font-black uppercase">1) Entrainement</h3>
+              <p className="text-sm text-gray-700">Choisis une taille puis lance l'entrainement.</p>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {levels.map(level => (
+                  <button
+                    key={level}
+                    onClick={() => setLabSelectedSize(level)}
+                    className={`border-2 border-black rounded py-2 text-sm font-mono font-bold transition-colors ${labSelectedSize === level ? 'bg-black text-white' : 'bg-white hover:bg-gray-100'}`}
+                  >
+                    {level} images
+                  </button>
+                ))}
+              </div>
+
+              <Button onClick={trainLab} disabled={labTrainLoading} className="w-full text-base md:text-lg py-3">
+                {labTrainLoading ? 'Entrainement en cours...' : `Entrainer avec ${labSelectedSize} images`}
+              </Button>
+
+              <div className="grid grid-cols-2 gap-3 text-center">
+                <div className="bg-white border border-black rounded p-2">
+                  <div className="text-xs font-mono text-gray-500 uppercase">Train</div>
+                  <div className="text-xl font-black">{labTraining ? `${labTraining.train_accuracy}%` : '--'}</div>
+                </div>
+                <div className="bg-white border border-black rounded p-2">
+                  <div className="text-xs font-mono text-gray-500 uppercase">Validation</div>
+                  <div className="text-xl font-black">{labTraining ? `${labTraining.val_accuracy}%` : '--'}</div>
+                </div>
+              </div>
+
+              <div className="text-xs font-mono text-gray-500">
+                Banque de donnees: {labInfo ? `${labInfo.chat_pool} chats / ${labInfo.pas_chat_pool} pas chats` : 'chargement...'}
+              </div>
+            </div>
+
+            <div className="bg-gray-50 border-2 border-black rounded-lg p-4 space-y-4">
+              <h3 className="text-lg font-black uppercase">2) Démonstration</h3>
+              <p className="text-sm text-gray-700">
+                Les pourcentages représentent les décisions de l'IA.
+                <span className="block mt-1">
+                  <span className="font-bold text-emerald-700">Vert = Chat</span>,{' '}
+                  <span className="font-bold text-red-700">Rouge = Pas chat</span>
+                </span>
+              </p>
+
+              {labPredictLoading && (
+                <div className="text-sm font-mono text-gray-600">Calcul des pourcentages en cours...</div>
+              )}
+
+              <div className="border-2 border-black rounded-lg bg-white p-2">
+                <div className="grid grid-cols-2 gap-2">
+                  {labImages.map((image) => {
+                    const overlay = labPredictions[image.id];
+                    return (
+                      <div key={image.id} className="relative aspect-square bg-white border border-black rounded overflow-hidden">
+                        <img src={image.url} alt={image.id} className="w-full h-full object-cover" />
+
+                        {overlay ? (
+                          <>
+                            <div className="absolute top-1 left-1/2 -translate-x-1/2 bg-emerald-600/70 text-white text-[11px] md:text-xs font-black px-2 py-0.5 rounded border border-emerald-200">
+                              {overlay.chatPct}%
+                            </div>
+                            <div className="absolute bottom-1 left-1/2 -translate-x-1/2 bg-red-600/70 text-white text-[11px] md:text-xs font-black px-2 py-0.5 rounded border border-red-200">
+                              {overlay.pasChatPct}%
+                            </div>
+                          </>
+                        ) : (
+                          <div className="absolute inset-0 bg-black/35 flex items-center justify-center">
+                            <span className="text-white text-[10px] font-mono px-1.5 py-0.5 rounded bg-black/50">En attente</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {labImages.length === 0 && (
+                <div className="text-sm text-gray-600 font-mono">Aucune image disponible pour le moment.</div>
+              )}
+            </div>
+          </div>
+
+          {labError && (
+            <div className="bg-red-50 border-2 border-red-300 text-red-700 rounded p-3 text-sm">
+              {labError}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   if (stage === 'BRIEFING') {
     return (
       <div className="min-h-screen flex flex-col">
         <StageProgress currentStage={0} totalStages={3} title="Briefing" />
 
         {/* Briefing + Objectif */}
-        <div className="bg-white border-b-4 border-black p-5">
+        <div className="bg-white border-b-4 border-black p-3 md:p-5">
           <div className="max-w-3xl mx-auto space-y-3">
             <div className="flex items-start gap-3">
               <div className="w-8 h-8 bg-brand-dark border-2 border-black flex items-center justify-center flex-shrink-0 rounded">
@@ -504,7 +701,7 @@ const App: React.FC = () => {
               <div>
                 <p className="font-black text-sm uppercase text-gray-800 mb-1">Briefing</p>
                 <p className="text-sm text-gray-700 leading-relaxed">
-                  Tu vas tester <strong>deux IA</strong> qui font la même tâche : reconnaître un chat. Elles n'ont pas été entraînées de la même manière, donc elles ne réagissent pas pareil.
+                  Teste <strong>deux IA</strong> qui reconnaissent les chats. Entraînées différemment, elles réagissent différemment.
                 </p>
               </div>
             </div>
@@ -523,20 +720,20 @@ const App: React.FC = () => {
         </div>
 
         {/* Candidats A vs B */}
-        <div className="flex-1 flex flex-col md:flex-row items-center justify-center gap-8 p-8 max-w-6xl mx-auto w-full">
+        <div className="flex-1 flex flex-col md:flex-row items-center justify-center gap-4 md:gap-8 p-4 md:p-8 max-w-6xl mx-auto w-full">
 
           {/* IA A Card */}
-          <div className="flex-1 bg-white p-8 rounded-lg shadow-retro border-2 border-black flex flex-col items-center text-center space-y-4 animate-slide-up relative" style={{ animationDelay: '0.1s' }}>
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-brand-blue border-2 border-black px-4 py-1 text-white font-mono font-bold uppercase text-sm">Candidat A</div>
-            <div className={`w-24 h-24 rounded-full ${MODEL_A.color} border-2 border-black flex items-center justify-center text-4xl font-black text-white mb-4 shadow-retro-sm`}>{MODEL_A.avatar}</div>
-            <h2 className="text-2xl font-black uppercase tracking-tight">{MODEL_A.name}</h2>
+          <div className="flex-1 w-full md:w-auto bg-white p-4 md:p-8 rounded-lg shadow-retro border-2 border-black flex flex-col items-center text-center space-y-3 md:space-y-4 animate-slide-up relative" style={{ animationDelay: '0.1s' }}>
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-brand-blue border-2 border-black px-3 md:px-4 py-1 text-white font-mono font-bold uppercase text-xs md:text-sm">Candidat A</div>
+            <div className={`w-20 h-20 md:w-24 md:h-24 rounded-full ${MODEL_A.color} border-2 border-black flex items-center justify-center text-3xl md:text-4xl font-black text-white mb-2 md:mb-4 shadow-retro-sm`}>{MODEL_A.avatar}</div>
+            <h2 className="text-xl md:text-2xl font-black uppercase tracking-tight">{MODEL_A.name}</h2>
             <div className="group relative">
               <div className="px-3 py-1 bg-blue-100 text-blue-900 border border-black rounded font-mono text-xs font-bold uppercase cursor-help">{MODEL_A.type}</div>
               <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-black text-white text-xs font-mono px-3 py-2 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
                 Très bon sur images standard
               </div>
             </div>
-            <p className="text-gray-600 leading-relaxed font-medium text-sm">{MODEL_A.description}</p>
+            <p className="text-gray-600 leading-relaxed font-medium text-sm">Performante sur images nettes et standard.</p>
             <button onClick={() => setShowTrainingA(!showTrainingA)} className="text-xs font-mono text-blue-500 hover:text-blue-800 underline flex items-center gap-1 transition-colors">
               <Eye size={12} /> {showTrainingA ? 'Masquer' : 'Voir entraînement'}
             </button>
@@ -562,17 +759,17 @@ const App: React.FC = () => {
           </div>
 
           {/* IA B Card */}
-          <div className="flex-1 bg-white p-8 rounded-lg shadow-retro border-2 border-black flex flex-col items-center text-center space-y-4 animate-slide-up relative" style={{ animationDelay: '0.2s' }}>
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-brand-orange border-2 border-black px-4 py-1 text-white font-mono font-bold uppercase text-sm">Candidat B</div>
-            <div className={`w-24 h-24 rounded-full ${MODEL_B.color} border-2 border-black flex items-center justify-center text-4xl font-black text-white mb-4 shadow-retro-sm`}>{MODEL_B.avatar}</div>
-            <h2 className="text-2xl font-black uppercase tracking-tight">{MODEL_B.name}</h2>
+          <div className="flex-1 w-full md:w-auto bg-white p-4 md:p-8 rounded-lg shadow-retro border-2 border-black flex flex-col items-center text-center space-y-3 md:space-y-4 animate-slide-up relative" style={{ animationDelay: '0.2s' }}>
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-brand-orange border-2 border-black px-3 md:px-4 py-1 text-white font-mono font-bold uppercase text-xs md:text-sm">Candidat B</div>
+            <div className={`w-20 h-20 md:w-24 md:h-24 rounded-full ${MODEL_B.color} border-2 border-black flex items-center justify-center text-3xl md:text-4xl font-black text-white mb-2 md:mb-4 shadow-retro-sm`}>{MODEL_B.avatar}</div>
+            <h2 className="text-xl md:text-2xl font-black uppercase tracking-tight">{MODEL_B.name}</h2>
             <div className="group relative">
               <div className="px-3 py-1 bg-orange-100 text-orange-900 border border-black rounded font-mono text-xs font-bold uppercase cursor-help">{MODEL_B.type}</div>
               <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-black text-white text-xs font-mono px-3 py-2 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
                 Tient mieux quand ça change
               </div>
             </div>
-            <p className="text-gray-600 leading-relaxed font-medium text-sm">{MODEL_B.description}</p>
+            <p className="text-gray-600 leading-relaxed font-medium text-sm">Résiste aux variations, admet le doute.</p>
             <button onClick={() => setShowTrainingB(!showTrainingB)} className="text-xs font-mono text-orange-500 hover:text-orange-800 underline flex items-center gap-1 transition-colors">
               <Eye size={12} /> {showTrainingB ? 'Masquer' : 'Voir entraînement'}
             </button>
@@ -592,8 +789,15 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        <div className="p-8 flex justify-center bg-white border-t-4 border-black">
-          <Button onClick={() => { setStage('TEST_1_DUEL'); setHasAnswered(false); setPredA(undefined); setPredB(undefined); }} className="w-full max-w-md text-lg">
+        <div className="p-4 md:p-8 flex flex-col sm:flex-row justify-center items-center gap-3 bg-white border-t-4 border-black">
+          <Button
+            variant="secondary"
+            onClick={() => setStage('WELCOME')}
+            className="w-full sm:w-auto text-base md:text-lg"
+          >
+            Retour au menu principal
+          </Button>
+          <Button onClick={() => { setStage('TEST_1_DUEL'); setHasAnswered(false); setPredA(undefined); setPredB(undefined); }} className="w-full max-w-md text-base md:text-lg">
             Je commence les tests <ArrowRight className="inline ml-2" size={20} />
           </Button>
         </div>
@@ -607,9 +811,9 @@ const App: React.FC = () => {
       <div className="min-h-screen flex flex-col">
         {renderTopNav()}
         <StageProgress currentStage={1} totalStages={3} title="Test 1 : Le Duel" subtitle={`Image ${test1Index + 1} / ${test1Images.length}`} />
-        <div className="flex-1 flex flex-col md:flex-row p-6 gap-8 max-w-7xl mx-auto w-full">
-          <div className="flex-[2] flex flex-col justify-center space-y-6">
-            <div className="relative aspect-square md:aspect-video bg-gray-100 rounded-lg overflow-hidden shadow-retro border-4 border-black p-2 bg-white">
+        <div className="flex-1 flex flex-col md:flex-row p-3 md:p-6 gap-4 md:gap-8 max-w-7xl mx-auto w-full">
+          <div className="flex-[2] flex flex-col justify-center space-y-3 md:space-y-6">
+            <div className="relative aspect-square md:aspect-video bg-gray-100 rounded-lg overflow-hidden shadow-retro border-2 md:border-4 border-black p-1 md:p-2 bg-white">
               <div className="w-full h-full border-2 border-black overflow-hidden relative">
                 <div className="absolute inset-0 pointer-events-none opacity-20 scanline z-10"></div>
 
@@ -626,8 +830,8 @@ const App: React.FC = () => {
                 )}
 
                 {test1Phase === 'REVEALED' && currentImg && (
-                  <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none p-4">
-                    <div className={`animate-stamp font-black text-4xl md:text-6xl border-8 px-6 py-3 uppercase tracking-widest backdrop-blur-[2px] bg-white/40 
+                  <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none p-2 md:p-4">
+                    <div className={`animate-stamp font-black text-2xl md:text-4xl lg:text-6xl border-4 md:border-8 px-3 md:px-6 py-2 md:py-3 uppercase tracking-widest backdrop-blur-[2px] bg-white/40 
                       ${currentImg.truth === 'CHAT' ? 'text-green-600 border-green-600' : 'text-red-600 border-red-600'}`}>
                       {currentImg.truth === 'CHAT' ? 'CHAT' : 'PAS CHAT'}
                     </div>
@@ -639,20 +843,20 @@ const App: React.FC = () => {
               </div>
             </div>
 
-            <div className="h-20 flex flex-col justify-center">
+            <div className="h-16 md:h-20 flex flex-col justify-center">
               {test1Phase === 'ANSWERING' ? (
-                <div className="grid grid-cols-2 gap-6">
-                  <Button onClick={() => handleTest1Answer('PAS_CHAT')} disabled={isAnalyzing} className="h-20 text-xl" variant="secondary">PAS CHAT</Button>
-                  <Button onClick={() => handleTest1Answer('CHAT')} disabled={isAnalyzing} className="h-20 text-xl">CHAT</Button>
+                <div className="grid grid-cols-2 gap-3 md:gap-6">
+                  <Button onClick={() => handleTest1Answer('PAS_CHAT')} disabled={isAnalyzing} className="h-14 md:h-20 text-base md:text-xl" variant="secondary">PAS CHAT</Button>
+                  <Button onClick={() => handleTest1Answer('CHAT')} disabled={isAnalyzing} className="h-14 md:h-20 text-base md:text-xl">CHAT</Button>
                 </div>
               ) : test1Phase === 'REVEALED' && !isAnalyzing ? (
                 <div className="flex justify-center">
-                  <Button onClick={goToNextTest1} className="px-12 h-20 text-lg">
+                  <Button onClick={goToNextTest1} className="px-8 md:px-12 h-14 md:h-20 text-base md:text-lg">
                     {test1Index < test1Images.length - 1 ? 'Suivant' : 'Voir les resultats'} <ArrowRight className="inline ml-2" size={20} />
                   </Button>
                 </div>
               ) : test1Phase === 'IDLE' ? (
-                <Button onClick={startTest1Round} className="w-full h-20 text-xl">Lancer le duel</Button>
+                <Button onClick={startTest1Round} className="w-full h-14 md:h-20 text-base md:text-xl">Lancer le duel</Button>
               ) : (
                 <div className="flex justify-center text-gray-400 font-mono animate-pulse">
                   {test1Phase === 'FLASHING' ? 'FLASH !' : 'Veuillez patienter...'}
@@ -661,18 +865,18 @@ const App: React.FC = () => {
             </div>
 
             {/* Live scoreboard */}
-            <div className={`grid grid-cols-3 gap-4 text-center bg-white border-2 border-black rounded p-4 shadow-retro-sm transition-opacity duration-300 ${test1Scores.humanTotal > 0 ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+            <div className={`grid grid-cols-3 gap-2 md:gap-4 text-center bg-white border-2 border-black rounded p-2 md:p-4 shadow-retro-sm transition-opacity duration-300 ${test1Scores.humanTotal > 0 ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
               <div>
-                <div className="text-2xl font-black text-brand-dark">{test1Scores.humanCorrect}/{test1Scores.humanTotal}</div>
-                <div className="text-xs text-gray-500 font-mono uppercase">Toi</div>
+                <div className="text-lg md:text-2xl font-black text-brand-dark">{test1Scores.humanCorrect}/{test1Scores.humanTotal}</div>
+                <div className="text-[10px] md:text-xs text-gray-500 font-mono uppercase">Toi</div>
               </div>
               <div>
-                <div className="text-2xl font-black text-brand-blue">{test1Scores.modelACorrect}/{test1Scores.modelATotal}</div>
-                <div className="text-xs text-gray-500 font-mono uppercase">IA A</div>
+                <div className="text-lg md:text-2xl font-black text-brand-blue">{test1Scores.modelACorrect}/{test1Scores.modelATotal}</div>
+                <div className="text-[10px] md:text-xs text-gray-500 font-mono uppercase">IA A</div>
               </div>
               <div>
-                <div className="text-2xl font-black text-brand-orange">{test1Scores.modelBCorrect}/{test1Scores.modelBTotal}</div>
-                <div className="text-xs text-gray-500 font-mono uppercase">IA B</div>
+                <div className="text-lg md:text-2xl font-black text-brand-orange">{test1Scores.modelBCorrect}/{test1Scores.modelBTotal}</div>
+                <div className="text-[10px] md:text-xs text-gray-500 font-mono uppercase">IA B</div>
               </div>
             </div>
           </div>
@@ -692,36 +896,36 @@ const App: React.FC = () => {
         {renderTopNav()}
         <div className="flex-1 flex flex-col justify-center items-center p-8">
           <div className="absolute inset-0 bg-dot-pattern opacity-50 pointer-events-none"></div>
-          <div className="max-w-5xl w-full bg-white rounded-lg border-4 border-black shadow-retro-lg p-8 text-center space-y-6 animate-fade-in z-10">
-            <h2 className="text-3xl font-black uppercase tracking-tight">Ce que tu viens de tester</h2>
+          <div className="max-w-5xl w-full bg-white rounded-lg border-2 md:border-4 border-black shadow-retro-lg p-4 md:p-8 text-center space-y-4 md:space-y-6 animate-fade-in z-10">
+            <h2 className="text-xl md:text-3xl font-black uppercase tracking-tight">Ce que tu viens de tester</h2>
 
-            <div className="grid grid-cols-3 gap-8 py-8 border-t-2 border-b-2 border-dashed border-gray-300">
+            <div className="grid grid-cols-3 gap-2 md:gap-8 py-2 md:py-8 border-t-2 border-b-2 border-dashed border-gray-300">
               <div className="text-center">
-                <div className="text-4xl font-black text-brand-dark mb-2">{test1Scores.humanCorrect}/{test1Scores.humanTotal}</div>
-                <div className="text-gray-500 font-mono text-sm uppercase">Score humain</div>
+                <div className="text-xl md:text-4xl font-black text-brand-dark mb-1 md:mb-2">{test1Scores.humanCorrect}/{test1Scores.humanTotal}</div>
+                <div className="text-gray-500 font-mono text-[9px] md:text-sm uppercase">Score humain</div>
               </div>
               <div className="text-center">
-                <div className="text-5xl font-black text-brand-blue mb-2">{test1Scores.modelACorrect}/{test1Scores.modelATotal}</div>
-                <div className="text-gray-500 font-mono text-sm uppercase">Score IA A</div>
+                <div className="text-xl md:text-5xl font-black text-brand-blue mb-1 md:mb-2">{test1Scores.modelACorrect}/{test1Scores.modelATotal}</div>
+                <div className="text-gray-500 font-mono text-[9px] md:text-sm uppercase">Score IA A</div>
               </div>
               <div className="text-center">
-                <div className="text-5xl font-black text-brand-orange mb-2">{test1Scores.modelBCorrect}/{test1Scores.modelBTotal}</div>
-                <div className="text-gray-500 font-mono text-sm uppercase">Score IA B</div>
+                <div className="text-xl md:text-5xl font-black text-brand-orange mb-1 md:mb-2">{test1Scores.modelBCorrect}/{test1Scores.modelBTotal}</div>
+                <div className="text-gray-500 font-mono text-[9px] md:text-sm uppercase">Score IA B</div>
               </div>
             </div>
 
-            <div className="text-left space-y-6 max-w-5xl mx-auto bg-gray-50 p-6 rounded-lg border-2 border-black">
-              <p className="text-base text-gray-800 leading-relaxed">
-                <strong className="text-brand-dark uppercase bg-brand-dark/10 px-2 py-1 rounded">Dans ce mode "flash"</strong><br />
-                L'image n'apparaît que très brièvement. Ton cerveau doit décider avec peu d'informations : formes incomplètes, détails manquants, et parfois une illusion visuelle. C'est pour ça qu'on se trompe plus facilement en mode réflexe.
+            <div className="text-left space-y-4 max-w-5xl mx-auto bg-gray-50 p-4 rounded-lg border-2 border-black">
+              <p className="text-sm text-gray-800 leading-snug">
+                <strong className="text-brand-dark uppercase bg-brand-dark/10 px-2 py-1 rounded text-xs">Mode flash</strong><br />
+                L'image apparaît brièvement. Ton cerveau décide avec peu d'infos : formes incomplètes, détails manquants. D'où les erreurs.
               </p>
-              <p className="text-base text-gray-800 leading-relaxed">
-                <strong className="text-brand-dark uppercase bg-brand-dark/10 px-2 py-1 rounded">Comment l'IA répond si vite</strong><br />
-                L'IA ne "réfléchit" pas comme un humain. Elle applique une fonction apprise à partir d'exemples : l'image est transformée en nombres, puis le modèle calcule un score "chat" et un score "pas chat". Le plus élevé gagne. La barre de confiance indique à quel point le modèle préfère une option, mais ce n'est pas une garantie de vérité.
+              <p className="text-sm text-gray-800 leading-snug">
+                <strong className="text-brand-dark uppercase bg-brand-dark/10 px-2 py-1 rounded text-xs">Comment l'IA répond</strong><br />
+                L'IA ne réfléchit pas. Elle calcule des scores "chat" et "pas chat" appris par entraînement. Le plus élevé gagne. La confiance n'est pas une garantie.
               </p>
-              <p className="text-base text-gray-800 leading-relaxed">
-                <strong className="text-brand-dark uppercase bg-brand-dark/10 px-2 py-1 rounded">Ce qu'il faut retenir</strong><br />
-                Réussir sur des images rapides montre surtout une chose : le modèle fonctionne bien quand l'information visuelle est claire et proche de ce qu'il a appris. La vraie question pour juger sa fiabilité est : que se passe-t-il quand on enlève des détails, par exemple en pixélisant l'image ? C'est ce qu'on teste à l'étape suivante.
+              <p className="text-sm text-gray-800 leading-snug">
+                <strong className="text-brand-dark uppercase bg-brand-dark/10 px-2 py-1 rounded text-xs">À retenir</strong><br />
+                Réussir sur images rapides = le modèle fonctionne si l'info est claire. La vraie question : que se passe-t-il si on pixélise ?
               </p>
             </div>
 
@@ -742,9 +946,9 @@ const App: React.FC = () => {
       <div className="min-h-screen flex flex-col">
         {renderTopNav()}
         <StageProgress currentStage={2} totalStages={3} title="Test 2 : Pixélisation" subtitle={`Image ${test2Index + 1} / ${test2Images.length} — Difficulté: ${level}`} />
-        <div className="flex-1 flex flex-col md:flex-row p-6 gap-8 max-w-7xl mx-auto w-full">
-          <div className="flex-[2] flex flex-col justify-center space-y-6">
-            <div className="relative aspect-square md:aspect-video bg-gray-900 rounded-lg overflow-hidden shadow-retro border-4 border-black p-2 bg-white" style={{ maxHeight: '50vh' }}>
+        <div className="flex-1 flex flex-col md:flex-row p-3 md:p-6 gap-4 md:gap-8 max-w-7xl mx-auto w-full">
+          <div className="flex-[2] flex flex-col justify-center space-y-3 md:space-y-6">
+            <div className="relative aspect-square md:aspect-video bg-gray-900 rounded-lg overflow-hidden shadow-retro border-2 md:border-4 border-black p-1 md:p-2 bg-white" style={{ maxHeight: '50vh' }}>
               <div className="w-full h-full border-2 border-black overflow-hidden relative bg-black">
                 {test2Phase !== 'IDLE' && (
                   <>
@@ -770,18 +974,18 @@ const App: React.FC = () => {
               </div>
             </div>
 
-            <div className="h-20 flex flex-col justify-center">
+            <div className="h-16 md:h-20 flex flex-col justify-center">
               {test2Phase === 'IDLE' ? (
-                <Button onClick={() => setTest2Phase('LOADING')} className="w-full h-20 text-xl font-bold">Lancer le duel</Button>
+                <Button onClick={() => setTest2Phase('LOADING')} className="w-full h-14 md:h-20 text-base md:text-xl font-bold">Lancer le duel</Button>
               ) : test2Phase === 'PIXELATED_VIEW' && (
-                <div className="grid grid-cols-2 gap-6 animate-fade-in">
-                  <Button onClick={() => handleTest2Answer('PAS_CHAT')} disabled={isAnalyzing} className="h-20 text-xl" variant="secondary">PAS CHAT</Button>
-                  <Button onClick={() => handleTest2Answer('CHAT')} disabled={isAnalyzing} className="h-20 text-xl">CHAT</Button>
+                <div className="grid grid-cols-2 gap-3 md:gap-6 animate-fade-in">
+                  <Button onClick={() => handleTest2Answer('PAS_CHAT')} disabled={isAnalyzing} className="h-14 md:h-20 text-base md:text-xl" variant="secondary">PAS CHAT</Button>
+                  <Button onClick={() => handleTest2Answer('CHAT')} disabled={isAnalyzing} className="h-14 md:h-20 text-base md:text-xl">CHAT</Button>
                 </div>
               )}
               {test2Phase === 'TRUTH_REVEAL' && (
                 <div className="flex justify-center animate-fade-in">
-                  <Button onClick={goToNextTest2} className="px-12 h-20 text-lg">
+                  <Button onClick={goToNextTest2} className="px-8 md:px-12 h-14 md:h-20 text-base md:text-lg">
                     {test2Index < test2Images.length - 1 ? 'Suivant' : 'Voir les résultats'} <ArrowRight className="inline ml-2" size={20} />
                   </Button>
                 </div>
@@ -789,18 +993,18 @@ const App: React.FC = () => {
             </div>
 
             {/* Live scoreboard Test 2 */}
-            <div className={`grid grid-cols-3 gap-4 text-center bg-white border-2 border-black rounded p-4 shadow-retro-sm transition-opacity duration-300 ${test2Scores.humanTotal > 0 ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+            <div className={`grid grid-cols-3 gap-2 md:gap-4 text-center bg-white border-2 border-black rounded p-2 md:p-4 shadow-retro-sm transition-opacity duration-300 ${test2Scores.humanTotal > 0 ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
               <div>
-                <div className="text-2xl font-black text-brand-dark">{test2Scores.humanCorrect}/{test2Scores.humanTotal}</div>
-                <div className="text-xs text-gray-500 font-mono uppercase">Toi</div>
+                <div className="text-lg md:text-2xl font-black text-brand-dark">{test2Scores.humanCorrect}/{test2Scores.humanTotal}</div>
+                <div className="text-[10px] md:text-xs text-gray-500 font-mono uppercase">Toi</div>
               </div>
               <div>
-                <div className="text-2xl font-black text-brand-blue">{test2Scores.modelACorrect}/{test2Scores.modelATotal}</div>
-                <div className="text-xs text-gray-500 font-mono uppercase">IA A</div>
+                <div className="text-lg md:text-2xl font-black text-brand-blue">{test2Scores.modelACorrect}/{test2Scores.modelATotal}</div>
+                <div className="text-[10px] md:text-xs text-gray-500 font-mono uppercase">IA A</div>
               </div>
               <div>
-                <div className="text-2xl font-black text-brand-orange">{test2Scores.modelBCorrect}/{test2Scores.modelBTotal}</div>
-                <div className="text-xs text-gray-500 font-mono uppercase">IA B</div>
+                <div className="text-lg md:text-2xl font-black text-brand-orange">{test2Scores.modelBCorrect}/{test2Scores.modelBTotal}</div>
+                <div className="text-[10px] md:text-xs text-gray-500 font-mono uppercase">IA B</div>
               </div>
             </div>
           </div>
@@ -818,36 +1022,36 @@ const App: React.FC = () => {
     return (
       <div className="min-h-screen flex flex-col relative">
         {renderTopNav()}
-        <div className="flex-1 flex flex-col justify-center items-center p-8">
+        <div className="flex-1 flex flex-col justify-center items-center p-4 md:p-8">
           <div className="absolute inset-0 bg-dot-pattern opacity-50 pointer-events-none"></div>
-          <div className="max-w-5xl w-full bg-white rounded-lg border-4 border-black shadow-retro-lg p-8 text-center space-y-6 animate-fade-in z-10">
-            <h2 className="text-4xl font-black uppercase tracking-tight">Ce que montre la pixélisation</h2>
+          <div className="max-w-5xl w-full bg-white rounded-lg border-2 md:border-4 border-black shadow-retro-lg p-4 md:p-8 text-center space-y-4 md:space-y-6 animate-fade-in z-10">
+            <h2 className="text-xl md:text-4xl font-black uppercase tracking-tight">Ce que montre la pixélisation</h2>
 
-            <div className="grid grid-cols-3 gap-8 py-8 border-t-2 border-b-2 border-dashed border-gray-300">
+            <div className="grid grid-cols-3 gap-2 md:gap-8 py-2 md:py-8 border-t-2 border-b-2 border-dashed border-gray-300">
               <div className="text-center">
-                <div className="text-5xl font-black text-brand-dark mb-2">{test2Scores.humanCorrect}/{test2Scores.humanTotal}</div>
-                <div className="text-gray-500 font-mono text-sm uppercase">Score humain</div>
+                <div className="text-xl md:text-5xl font-black text-brand-dark mb-1 md:mb-2">{test2Scores.humanCorrect}/{test2Scores.humanTotal}</div>
+                <div className="text-gray-500 font-mono text-[9px] md:text-sm uppercase">Score humain</div>
               </div>
               <div className="text-center">
-                <div className="text-5xl font-black text-brand-blue mb-2">{test2Scores.modelACorrect}/{test2Scores.modelATotal}</div>
-                <div className="text-gray-500 font-mono text-sm uppercase">Score IA A</div>
+                <div className="text-xl md:text-5xl font-black text-brand-blue mb-1 md:mb-2">{test2Scores.modelACorrect}/{test2Scores.modelATotal}</div>
+                <div className="text-gray-500 font-mono text-[9px] md:text-sm uppercase">Score IA A</div>
               </div>
               <div className="text-center">
-                <div className="text-5xl font-black text-brand-orange mb-2">{test2Scores.modelBCorrect}/{test2Scores.modelBTotal}</div>
-                <div className="text-gray-500 font-mono text-sm uppercase">Score IA B</div>
+                <div className="text-xl md:text-5xl font-black text-brand-orange mb-1 md:mb-2">{test2Scores.modelBCorrect}/{test2Scores.modelBTotal}</div>
+                <div className="text-gray-500 font-mono text-[9px] md:text-sm uppercase">Score IA B</div>
               </div>
             </div>
-            <div className="text-sm font-mono text-gray-500 uppercase pb-4">Niveaux de pixélisation utilisés : Léger, Moyen, Fort</div>
+            <div className="text-xs md:text-sm font-mono text-gray-500 uppercase pb-2 md:pb-4">Niveaux de pixélisation utilisés : Léger, Moyen, Fort</div>
 
             <div className="text-left space-y-6 max-w-5xl mx-auto bg-gray-50 p-6 rounded-lg border-2 border-black">
               <p className="text-base text-gray-800 leading-relaxed">
-                Quand on pixélise une image, on supprime une partie de l'information : les détails fins disparaissent et il ne reste que des formes grossières. Dans cette étape, toi et les deux IA avez pris une décision sur <strong className="bg-yellow-200 px-1">exactement la même image dégradée</strong>.
+                Quand on pixélise une image, on supprime une partie de l'information : les détails fins disparaissent et il ne reste que des formes grossières. Dans cette étape, toi et les IA avez pris une décision sur <strong className="bg-yellow-200 px-1">exactement la même image dégradée</strong>.
               </p>
               <p className="text-base text-gray-800 leading-relaxed">
-                Ce test montre une limite simple mais importante : un modèle peut être très bon quand l'image est "propre", puis perdre en fiabilité dès qu'on réduit la qualité. La différence vient souvent de ce que le modèle a appris à utiliser : des détails fragiles (textures, petits motifs) ou des indices plus robustes (formes générales).
+                Ce test montre une limite simple mais importante : un modèle peut être très bon quand l'image est "propre", puis perdre en fiabilité dès qu'on réduit la qualité. La différence vient souvent de ce que le modèle a apprit à utiliser : des détails fragiles (textures, petits motifs) ou des indices plus robustes (formes générales).
               </p>
               <p className="text-base text-gray-800 leading-relaxed font-bold bg-brand-dark/10 p-4 rounded border-l-4 border-brand-dark">
-                Ce qu’il faut retenir : pour juger une IA, il ne suffit pas de regarder si elle réussit sur des images parfaites. Il faut vérifier comment elle se comporte quand l'information se dégrade, car c'est ce qui arrive souvent en conditions réelles.
+                Ce qu’il faut retenir  : pour juger une IA, il ne suffit pas de regarder si elle réussit sur des images parfaites. Il faut vérifier comment elle se comporte quand l'information se dégrade, car c'est ce qui arrive souvent en conditions réelles.
               </p>
             </div>
 
@@ -867,16 +1071,16 @@ const App: React.FC = () => {
       <div className="min-h-screen flex flex-col">
         {renderTopNav()}
         <StageProgress currentStage={3} totalStages={3} title="Test 3 : Faux Amis" subtitle={`Image ${test3Index + 1} / ${test3Images.length} — Est-ce vraiment un chat ?`} />
-        <div className="bg-white border-b-4 border-black p-4">
+        <div className="bg-white border-b-4 border-black p-3 md:p-4">
           <div className="max-w-3xl mx-auto text-center">
-            <p className="text-sm text-gray-600 font-mono">
+            <p className="text-xs md:text-sm text-gray-600 font-mono">
               Ces images <strong>ressemblent à des chats</strong> sans en être forcément. L'IA va-t-elle se laisser piéger ?
             </p>
           </div>
         </div>
-        <div className="flex-1 flex flex-col md:flex-row p-6 gap-8 max-w-7xl mx-auto w-full">
-          <div className="flex-[2] flex flex-col justify-center space-y-6">
-            <div className="relative aspect-square md:aspect-video bg-gray-100 rounded-lg overflow-hidden shadow-retro border-4 border-black p-2 bg-white" style={{ maxHeight: '50vh' }}>
+        <div className="flex-1 flex flex-col md:flex-row p-3 md:p-6 gap-4 md:gap-8 max-w-7xl mx-auto w-full">
+          <div className="flex-[2] flex flex-col justify-center space-y-3 md:space-y-6">
+            <div className="relative aspect-square md:aspect-video bg-gray-100 rounded-lg overflow-hidden shadow-retro border-2 md:border-4 border-black p-1 md:p-2 bg-white" style={{ maxHeight: '50vh' }}>
               <div className="w-full h-full border-2 border-black overflow-hidden relative">
                 {test3Phase === 'STARTED' && (
                   <>
@@ -892,16 +1096,16 @@ const App: React.FC = () => {
             </div>
 
             {test3Phase === 'IDLE' ? (
-              <Button onClick={() => setTest3Phase('STARTED')} className="w-full h-20 text-xl font-bold">Lancer le duel</Button>
+              <Button onClick={() => setTest3Phase('STARTED')} className="w-full h-14 md:h-20 text-base md:text-xl font-bold">Lancer le duel</Button>
             ) : !hasAnswered ? (
-              <div className="grid grid-cols-3 gap-4" style={{ position: 'relative', zIndex: 10 }}>
-                <Button onClick={() => handleTest3Answer('PAS_CHAT')} disabled={isAnalyzing} variant="secondary" className="text-lg h-16">PAS CHAT</Button>
-                <Button onClick={() => handleTest3Answer('IDK')} disabled={isAnalyzing} className="bg-brand-dark text-white hover:bg-black border-2 border-black text-lg h-16">JE NE SAIS PAS</Button>
-                <Button onClick={() => handleTest3Answer('CHAT')} disabled={isAnalyzing} className="text-lg h-16">CHAT</Button>
+              <div className="grid grid-cols-3 gap-2 md:gap-4" style={{ position: 'relative', zIndex: 10 }}>
+                <Button onClick={() => handleTest3Answer('PAS_CHAT')} disabled={isAnalyzing} variant="secondary" className="text-sm md:text-lg h-14 md:h-16">PAS CHAT</Button>
+                <Button onClick={() => handleTest3Answer('IDK')} disabled={isAnalyzing} className="bg-brand-dark text-white hover:bg-black border-2 border-black text-sm md:text-lg h-14 md:h-16">JE NE SAIS PAS</Button>
+                <Button onClick={() => handleTest3Answer('CHAT')} disabled={isAnalyzing} className="text-sm md:text-lg h-14 md:h-16">CHAT</Button>
               </div>
             ) : (
               <div className="flex justify-center" style={{ position: 'relative', zIndex: 10 }}>
-                <Button onClick={goToNextTest3} className="px-12 py-4 text-lg">
+                <Button onClick={goToNextTest3} className="px-8 md:px-12 py-3 md:py-4 text-base md:text-lg">
                   {test3Index < test3Images.length - 1 ? 'Suivant' : 'Voir les resultats'} <ArrowRight className="inline ml-2" size={20} />
                 </Button>
               </div>
@@ -921,35 +1125,35 @@ const App: React.FC = () => {
     return (
       <div className="min-h-screen flex flex-col relative">
         {renderTopNav()}
-        <div className="flex-1 flex flex-col justify-center items-center p-8">
+        <div className="flex-1 flex flex-col justify-center items-center p-4 md:p-8">
           <div className="absolute inset-0 bg-dot-pattern opacity-50 pointer-events-none"></div>
-          <div className="max-w-6xl w-full bg-white rounded-lg border-4 border-black shadow-retro-lg p-6 text-center space-y-4 animate-fade-in z-10">
-            <h2 className="text-2xl font-black uppercase tracking-tight">Ce que montrent les "faux amis"</h2>
+          <div className="max-w-6xl w-full bg-white rounded-lg border-2 md:border-4 border-black shadow-retro-lg p-4 md:p-6 text-center space-y-3 md:space-y-4 animate-fade-in z-10">
+            <h2 className="text-lg md:text-2xl font-black uppercase tracking-tight">Ce que montrent les "faux amis"</h2>
 
-            <div className="grid grid-cols-3 gap-6 py-4 border-t-2 border-b-2 border-dashed border-gray-300">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-6 py-3 md:py-4 border-t-2 border-b-2 border-dashed border-gray-300">
               <div className="text-center">
-                <div className="text-4xl font-black text-brand-dark mb-2">{test3Scores.humanCorrect}/{test3Scores.humanTotal}</div>
-                <div className="text-gray-500 font-mono text-sm uppercase">Score humain</div>
+                <div className="text-2xl md:text-4xl font-black text-brand-dark mb-2">{test3Scores.humanCorrect}/{test3Scores.humanTotal}</div>
+                <div className="text-gray-500 font-mono text-xs md:text-sm uppercase">Score humain</div>
               </div>
               <div className="text-center">
-                <div className="text-4xl font-black text-brand-blue mb-2">{test3Scores.modelACorrect}/{test3Scores.modelATotal}</div>
-                <div className="text-gray-500 font-mono text-sm uppercase">Score IA A</div>
+                <div className="text-2xl md:text-4xl font-black text-brand-blue mb-2">{test3Scores.modelACorrect}/{test3Scores.modelATotal}</div>
+                <div className="text-gray-500 font-mono text-xs md:text-sm uppercase">Score IA A</div>
               </div>
               <div className="text-center">
-                <div className="text-4xl font-black text-brand-orange mb-2">{test3Scores.modelBCorrect}/{test3Scores.modelBTotal}</div>
-                <div className="text-gray-500 font-mono text-sm uppercase">Score IA B</div>
+                <div className="text-2xl md:text-4xl font-black text-brand-orange mb-2">{test3Scores.modelBCorrect}/{test3Scores.modelBTotal}</div>
+                <div className="text-gray-500 font-mono text-xs md:text-sm uppercase">Score IA B</div>
               </div>
             </div>
 
             <div className="text-left space-y-3 max-w-full mx-auto bg-gray-50 p-4 rounded-lg border-2 border-black">
-              <p className="text-base text-gray-800 leading-relaxed">
-                Dans cette étape, les images étaient <strong className="bg-yellow-200 px-1">volontairement ambiguës</strong> : elles ressemblent à un chat, sans forcément en être un. C'est un test de <strong>généralisation</strong>.
+              <p className="text-sm text-gray-800 leading-snug">
+                Ces images étaient <strong className="bg-yellow-200 px-1">ambiguës</strong> : elles ressemblent à un chat sans en être un. Test de généralisation.
               </p>
-              <p className="text-base text-gray-800 leading-relaxed">
-                Un modèle de vision ne possède pas la notion abstraite de "chat". Il apprend à associer des <strong>motifs visuels</strong> à un label. Quand on lui montre un cas proche mais différent (peluche, dessin, autre animal), il peut classer de façon surprenante, parfois avec beaucoup de confiance.
+              <p className="text-sm text-gray-800 leading-snug">
+                Un modèle n'a pas la notion abstraite de "chat". Il apprend des <strong>motifs visuels</strong>. Sur des cas proches mais différents, il peut se tromper avec confiance.
               </p>
-              <p className="text-base text-gray-800 leading-relaxed font-bold bg-brand-dark/10 p-3 rounded border-l-4 border-brand-dark">
-                Ce qu'il faut retenir : la performance d'une IA dépend fortement de ce qu'elle a vu pendant l'entraînement. Pour utiliser un modèle de manière fiable, il faut tester ces cas limites et décider comment gérer l'incertitude.
+              <p className="text-sm text-gray-800 leading-snug font-bold bg-brand-dark/10 p-3 rounded border-l-4 border-brand-dark">
+                À retenir : la performance dépend de l'entraînement. Teste les cas limites et gère l'incertitude.
               </p>
             </div>
 
@@ -986,20 +1190,20 @@ const App: React.FC = () => {
     return (
       <div className="min-h-screen flex flex-col relative">
         <div className="absolute inset-0 bg-dot-pattern opacity-50 pointer-events-none"></div>
-        <div className="absolute top-10 left-10 opacity-10 pointer-events-none -rotate-12 z-0"><Eye size={120} /></div>
-        <div className="absolute bottom-10 right-10 opacity-10 pointer-events-none rotate-12 z-0"><ShieldCheck size={120} /></div>
-        <div className="flex-1 flex flex-col items-center justify-center p-6 z-10">
-          <div className="w-full max-w-[90rem] bg-white rounded-lg border-4 border-black shadow-retro-lg p-5 space-y-3">
+        <div className="absolute top-10 left-10 opacity-10 pointer-events-none -rotate-12 z-0 hidden md:block"><Eye size={120} /></div>
+        <div className="absolute bottom-10 right-10 opacity-10 pointer-events-none rotate-12 z-0 hidden md:block"><ShieldCheck size={120} /></div>
+        <div className="flex-1 flex flex-col items-center justify-center p-3 md:p-6 z-10">
+          <div className="w-full max-w-[90rem] bg-white rounded-lg border-2 md:border-4 border-black shadow-retro-lg p-3 md:p-5 space-y-2 md:space-y-3">
 
             {/* Header */}
-            <div className="text-center bg-brand-dark rounded-lg p-4 border-2 border-black">
-              <h2 className="text-3xl font-black uppercase tracking-tight mb-1 text-white">🏁 Conclusion</h2>
-              <p className="font-mono text-gray-300 text-sm">Résumé de l'activité — Chat / Pas Chat</p>
+            <div className="text-center bg-brand-dark rounded-lg p-3 md:p-4 border-2 border-black">
+              <h2 className="text-2xl md:text-3xl font-black uppercase tracking-tight mb-1 text-white">🏁 Conclusion</h2>
+              <p className="font-mono text-gray-300 text-xs md:text-sm">Résumé de l'activité — Chat / Pas Chat</p>
             </div>
 
             {/* Stats résumé */}
-            <div className="bg-gray-50 border-2 border-black rounded-lg p-4 shadow-retro-sm">
-              <table className="w-full text-sm font-mono">
+            <div className="bg-gray-50 border-2 border-black rounded-lg p-3 md:p-4 shadow-retro-sm">
+              <table className="w-full text-xs md:text-sm font-mono">
                 <thead>
                   <tr className="border-b-2 border-black bg-gray-100">
                     <th className="text-left py-2 px-3 text-gray-500 uppercase text-xs rounded-tl">Test</th>
@@ -1029,11 +1233,11 @@ const App: React.FC = () => {
 
             {/* Conclusion text */}
             <div className="bg-amber-50 border-2 border-amber-300 rounded-lg p-3 shadow-retro-sm space-y-2">
-              <p className="text-base text-gray-800 leading-relaxed">
-                Tu viens de tester trois façons différentes de reconnaître un objet, toi et deux modèles d'IA, sur la même tâche simple : <strong className="bg-yellow-200 px-1">"chat / pas chat"</strong>. Ce que cette expérience montre, c'est qu'une IA de vision n'a pas une "intelligence générale". Elle apprend à partir d'exemples : elle transforme une image en nombres, puis calcule un score "chat" et un score "pas chat". Quand les images ressemblent à celles qu'elle a vues à l'entraînement, elle peut être très performante. Mais dès qu'on enlève de l'information (flash, pixélisation) ou qu'on change le type d'images (faux amis), ses erreurs deviennent différentes de celles d'un humain.
+              <p className="text-sm text-gray-800 leading-snug">
+                Tu as testé <strong className="bg-yellow-200 px-1">"chat / pas chat"</strong> avec deux IA. Résultat : une IA n'a pas d'intelligence générale. Elle apprend sur des exemples et calcule des scores. Si les images ressemblent à l'entraînement, elle est performante. Sinon (flash, pixélisation, faux amis), ses erreurs diffèrent de l'humain.
               </p>
-              <p className="text-base text-gray-800 leading-relaxed font-bold bg-brand-dark/10 p-3 rounded border-l-4 border-brand-dark">
-                La qualité d'une IA dépend moins de "sa magie" que de ses données et de ses conditions d'utilisation. Un bon modèle n'est pas celui qui réussit sur des exemples faciles, mais celui qui reste <strong>stable</strong> quand la qualité baisse et qui gère correctement les cas ambigus.
+              <p className="text-sm text-gray-800 leading-snug font-bold bg-brand-dark/10 p-3 rounded border-l-4 border-brand-dark">
+                La qualité dépend des données et conditions d'usage. Un bon modèle reste <strong>stable</strong> quand la qualité baisse et gère les cas ambigus.
               </p>
             </div>
 
@@ -1042,27 +1246,29 @@ const App: React.FC = () => {
               <div className="bg-blue-50 border-2 border-blue-300 rounded-lg p-4 shadow-retro-sm hover:shadow-retro hover:-translate-y-0.5 transition-all">
                 <div className="w-8 h-8 bg-brand-blue text-white border-2 border-black flex items-center justify-center font-black text-sm mb-3 rounded">1</div>
                 <h4 className="font-black text-sm uppercase mb-2 text-blue-900">Pas "intelligente en général"</h4>
-                <p className="text-xs text-blue-800 font-mono leading-relaxed">Une IA est bonne surtout dans les situations qui ressemblent à ce qu'elle a vu pendant l'entraînement.</p>
+                <p className="text-xs text-blue-800 font-mono leading-snug">Bonne sur des situations proches de l'entraînement.</p>
               </div>
               <div className="bg-orange-50 border-2 border-orange-300 rounded-lg p-4 shadow-retro-sm hover:shadow-retro hover:-translate-y-0.5 transition-all">
                 <div className="w-8 h-8 bg-brand-orange text-white border-2 border-black flex items-center justify-center font-black text-sm mb-3 rounded">2</div>
                 <h4 className="font-black text-sm uppercase mb-2 text-orange-900">La fiabilité se teste</h4>
-                <p className="text-xs text-orange-800 font-mono leading-relaxed">Il faut regarder ce qui se passe quand l'information baisse ou change (flash, pixélisation, faux amis), pas seulement sur des images faciles.</p>
+                <p className="text-xs text-orange-800 font-mono leading-snug">Teste quand l'info baisse (flash, pixélisation, faux amis), pas que sur images faciles.</p>
               </div>
               <div className="bg-yellow-50 border-2 border-yellow-400 rounded-lg p-4 shadow-retro-sm hover:shadow-retro hover:-translate-y-0.5 transition-all">
                 <div className="w-8 h-8 bg-yellow-400 text-black border-2 border-black flex items-center justify-center font-black text-sm mb-3 rounded">3</div>
                 <h4 className="font-black text-sm uppercase mb-2 text-yellow-900">Confiance ≠ vérité</h4>
-                <p className="text-xs text-yellow-800 font-mono leading-relaxed">Une IA peut être très sûre et se tromper. Il faut prévoir une gestion de l'incertitude : vérifier, s'abstenir, ou tester davantage.</p>
+                <p className="text-xs text-yellow-800 font-mono leading-snug">L'IA peut être sûre et se tromper. Gère l'incertitude : vérifie, abstiens-toi, teste.</p>
               </div>
             </div>
 
             {/* Actions */}
-            <div className="flex justify-center gap-4 pt-2">
-              <button onClick={() => setStage('BONUS_MENU')} className="bg-purple-500 hover:bg-purple-600 text-white font-bold py-3 px-8 border-2 border-black shadow-retro active:shadow-none active:translate-x-1 active:translate-y-1 transition-all uppercase text-sm flex items-center gap-2">
-                <Brain size={18} />Petit plus pour les curieux
+            <div className="flex flex-col sm:flex-row justify-center gap-3 md:gap-4 pt-2">
+              <button onClick={() => setStage('BONUS_MENU')} className="bg-purple-500 hover:bg-purple-600 text-white font-bold py-2 px-4 md:py-3 md:px-8 border-2 border-black shadow-retro active:shadow-none active:translate-x-1 active:translate-y-1 transition-all uppercase text-xs md:text-sm flex items-center justify-center gap-2">
+                <Brain size={16} className="md:hidden" />
+                <Brain size={18} className="hidden md:block" />Petit plus pour les curieux
               </button>
-              <button onClick={resetAll} className="bg-brand-dark hover:bg-gray-800 text-white font-bold py-3 px-8 border-2 border-black shadow-retro active:shadow-none active:translate-x-1 active:translate-y-1 transition-all uppercase text-sm flex items-center gap-2">
-                <RefreshCw size={18} />Recommencer
+              <button onClick={resetAll} className="bg-brand-dark hover:bg-gray-800 text-white font-bold py-2 px-4 md:py-3 md:px-8 border-2 border-black shadow-retro active:shadow-none active:translate-x-1 active:translate-y-1 transition-all uppercase text-xs md:text-sm flex items-center justify-center gap-2">
+                <RefreshCw size={16} className="md:hidden" />
+                <RefreshCw size={18} className="hidden md:block" />Recommencer
               </button>
             </div>
 
@@ -1078,50 +1284,70 @@ const App: React.FC = () => {
 
   if (stage === 'BONUS_MENU') {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-8 relative">
+      <div className="min-h-screen flex flex-col items-center justify-center p-4 md:p-8 relative">
         <div className="absolute inset-0 bg-dot-pattern opacity-50 pointer-events-none"></div>
-        <div className="max-w-3xl w-full bg-white rounded-lg border-4 border-black shadow-retro-lg p-10 text-center space-y-8 animate-fade-in z-10">
-          <div className="inline-flex items-center justify-center p-4 bg-purple-100 border-2 border-black rounded-full text-purple-700 mb-4 shadow-retro-sm">
-            <Brain size={48} />
+        <div className="max-w-3xl w-full bg-white rounded-lg border-2 md:border-4 border-black shadow-retro-lg p-6 md:p-10 text-center space-y-4 md:space-y-8 animate-fade-in z-10">
+          <div className="inline-flex items-center justify-center p-3 md:p-4 bg-purple-100 border-2 border-black rounded-full text-purple-700 mb-2 md:mb-4 shadow-retro-sm">
+            <Brain size={36} className="md:hidden" />
+            <Brain size={48} className="hidden md:block" />
           </div>
-          <h2 className="text-3xl font-black uppercase tracking-tight">Petit plus pour les curieux</h2>
-          <p className="text-gray-600 font-medium">Deux bonus optionnels pour aller plus loin.</p>
+          <h2 className="text-2xl md:text-3xl font-black uppercase tracking-tight">Petit plus pour les curieux</h2>
+          <p className="text-sm md:text-base text-gray-600 font-medium">Activités bonus pour aller plus loin.</p>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
             <button
               onClick={() => setStage('BONUS_A1')}
-              className="bg-indigo-50 hover:bg-indigo-100 border-2 border-indigo-400 p-6 rounded-lg text-left transition-all hover:shadow-retro-sm group"
+              className="bg-indigo-50 hover:bg-indigo-100 border-2 border-indigo-400 p-4 md:p-6 rounded-lg text-left transition-all hover:shadow-retro-sm group"
             >
-              <div className="flex items-center gap-3 mb-3">
-                <Sparkles size={28} className="text-indigo-600" />
-                <h3 className="font-black text-lg uppercase text-indigo-900">Bonus A</h3>
+              <div className="flex items-center gap-2 md:gap-3 mb-2 md:mb-3">
+                <Sparkles size={24} className="md:hidden text-indigo-600" />
+                <Sparkles size={28} className="hidden md:block text-indigo-600" />
+                <h3 className="font-black text-base md:text-lg uppercase text-indigo-900">Bonus A</h3>
               </div>
-              <p className="font-bold text-indigo-800 mb-2">Dans la tête du modele</p>
-              <p className="text-sm text-indigo-600 font-mono">Comment le modèle apprend-il ? 3 écrans, 30 secondes.</p>
+              <p className="font-bold text-sm md:text-base text-indigo-800 mb-1 md:mb-2">Dans la tête du modele</p>
+              <p className="text-xs md:text-sm text-indigo-600 font-mono">Comment le modèle apprend-il ? 3 écrans, 30 secondes.</p>
             </button>
 
             <button
               onClick={() => setStage('BONUS_B')}
-              className="bg-amber-50 hover:bg-amber-100 border-2 border-amber-400 p-6 rounded-lg text-left transition-all hover:shadow-retro-sm group"
+              className="bg-amber-50 hover:bg-amber-100 border-2 border-amber-400 p-4 md:p-6 rounded-lg text-left transition-all hover:shadow-retro-sm group"
             >
-              <div className="flex items-center gap-3 mb-3">
-                <BookOpen size={28} className="text-amber-600" />
-                <h3 className="font-black text-lg uppercase text-amber-900">Bonus B</h3>
+              <div className="flex items-center gap-2 md:gap-3 mb-2 md:mb-3">
+                <BookOpen size={24} className="md:hidden text-amber-600" />
+                <BookOpen size={28} className="hidden md:block text-amber-600" />
+                <h3 className="font-black text-base md:text-lg uppercase text-amber-900">Bonus B</h3>
               </div>
-              <p className="font-bold text-amber-800 mb-2">Surapprentissage en 30 secondes</p>
-              <p className="text-sm text-amber-600 font-mono">Apprendre parfaitement... ne veut pas dire généraliser.</p>
+              <p className="font-bold text-sm md:text-base text-amber-800 mb-1 md:mb-2">Surapprentissage en 30 secondes</p>
+              <p className="text-xs md:text-sm text-amber-600 font-mono">Apprendre parfaitement... ne veut pas dire généraliser.</p>
             </button>
 
             <button
               onClick={() => { setBonusCFailure(null); setBonusCDiagnosis(null); setBonusCKit(null); setStage('BONUS_C_INTRO'); }}
-              className="bg-green-50 hover:bg-green-100 border-2 border-green-400 p-6 rounded-lg text-left transition-all hover:shadow-retro-sm group md:col-span-2"
+              className="bg-green-50 hover:bg-green-100 border-2 border-green-400 p-4 md:p-6 rounded-lg text-left transition-all hover:shadow-retro-sm group"
             >
-              <div className="flex items-center gap-3 mb-3">
-                <Wrench size={28} className="text-green-600" />
-                <h3 className="font-black text-lg uppercase text-green-900">Bonus C</h3>
+              <div className="flex items-center gap-2 md:gap-3 mb-2 md:mb-3">
+                <Wrench size={24} className="md:hidden text-green-600" />
+                <Wrench size={28} className="hidden md:block text-green-600" />
+                <h3 className="font-black text-base md:text-lg uppercase text-green-900">Bonus C</h3>
               </div>
-              <p className="font-bold text-green-800 mb-2">Atelier de Réparation</p>
-              <p className="text-sm text-green-600 font-mono">Diagnostiquez une panne IA et réparez-la avec de meilleures données.</p>
+              <p className="font-bold text-sm md:text-base text-green-800 mb-1 md:mb-2">Atelier de Réparation</p>
+              <p className="text-xs md:text-sm text-green-600 font-mono">Diagnostiquez une panne IA et réparez-la avec de meilleures données.</p>
+            </button>
+
+            <button
+              onClick={() => setStage('LAB_TRAINER')}
+              className="relative overflow-hidden bg-cyan-50 hover:bg-cyan-100 border-2 border-cyan-400 p-4 md:p-6 rounded-lg text-left transition-all hover:shadow-retro-sm group"
+            >
+              <span className="absolute top-2 right-2 bg-indigo-900 text-white border border-indigo-200 rounded px-2 py-0.5 text-[10px] font-mono font-bold uppercase tracking-wide">
+                Special
+              </span>
+              <div className="flex items-center gap-2 md:gap-3 mb-2 md:mb-3">
+                <Brain size={24} className="md:hidden text-cyan-700" />
+                <Brain size={28} className="hidden md:block text-cyan-700" />
+                <h3 className="font-black text-base md:text-lg uppercase text-cyan-900">Bonus D</h3>
+              </div>
+              <p className="font-bold text-sm md:text-base text-cyan-800 mb-1 md:mb-2">Entraîne ton IA</p>
+              <p className="text-xs md:text-sm text-cyan-700 font-mono">4 images fixes au lancement, avec pourcentages IA visibles directement.</p>
             </button>
           </div>
 
