@@ -11,45 +11,36 @@ Deux modeles sont compares a travers trois tests : duel, stress test et incertit
 
 ## Lancement
 
-### Lancement local uniquement
+### Local uniquement
 
-Donner les droits d'execution au script si ce n'est pas encore fait :
 ```bash
-chmod +x start.sh 
+chmod +x start.sh  # Une seule fois
+./start.sh
 ```
 
-Lancer le script :
+Ouvrir http://localhost:3000
+
+### Stand/démonstration (avec QR code)
+
+**Terminal 1 - Application :**
 ```bash
 ./start.sh
 ```
 
-Ouvrir http://localhost:3000.
-
-### Lancement public (stand/démonstration)
-
-Pour exposer le site via QR code :
-
-1. **Lancer l'application** (dans un terminal) :
-```bash
-./start.sh
-```
-
-2. **Lancer ngrok** (dans un second terminal) :
+**Terminal 2 - Tunnel ngrok :**
 ```bash
 ngrok http 3000
 ```
 
-3. **Récupérer l'URL publique** et générer le QR code :
+**Terminal 3 - QR code :**
 ```bash
-# L'URL s'affiche dans le terminal ngrok
-# Ou via l'API locale :
-curl -s http://127.0.0.1:4040/api/tunnels | python3 -c "import sys,json; print(json.load(sys.stdin)['tunnels'][0]['public_url'])"
-
-# Générer le QR code (remplacer par votre URL) :
-qrencode -o vision-duel-qr.png -s 10 "https://votre-url.ngrok-free.dev"
+sudo apt install qrencode  # Si pas déjà installé
+NGROK_URL=$(curl -s http://127.0.0.1:4040/api/tunnels | python3 -c "import sys,json; print(json.load(sys.stdin)['tunnels'][0]['public_url'])")
+echo "URL: $NGROK_URL"
+qrencode -o vision-duel-qr.png -s 10 "$NGROK_URL"
 ```
 
-**⚠️ Important** : Gardez les deux terminaux ouverts pendant toute la durée du stand.
+Le fichier `vision-duel-qr.png` est généré → l'afficher/imprimer pour les visiteurs.
 
 ## Architecture
 
