@@ -4,7 +4,9 @@ import App from './App';
 
 console.log('[VisionDuel] index.tsx loaded');
 
-class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { error: Error | null }> {
+interface ErrorBoundaryProps { children: React.ReactNode }
+interface ErrorBoundaryState { error: Error | null }
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   state = { error: null as Error | null };
   static getDerivedStateFromError(error: Error) {
     return { error };
@@ -22,7 +24,7 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { err
         </div>
       );
     }
-    return this.props.children;
+    return (this as any).props.children;
   }
 }
 

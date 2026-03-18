@@ -79,6 +79,30 @@ cd "$PROJECT_DIR/backend"
 PYTHONPATH="$PROJECT_DIR/backend" "$PYTHON_BIN" app.py &
 BACKEND_PID=$!
 
+# Start Cloudflare Tunnel
+echo "Starting Cloudflare Tunnel for frontend..."
+cloudflared tunnel --url http://localhost:3000 > "$PROJECT_DIR/cloudflared.log" 2>&1 &
+TUNNEL_PID=$!
+
+# Wait for tunnel URL
+TUNNEL_URL=""
+echo "Waiting for Cloudflare tunnel URL..."
+for i in {1..15}; do
+  TUNNEL_URL=$(grep -o 'https://[-0-9a-zA-Z]*\.trycloudflare\.com' "$PROJECT_DIR/cloudflared.log" | head -1)
+  if [ -n "$TUNNEL_URL" ]; then
+    break
+  fi
+  sleep 1
+done
+
+if [ -n "$TUNNEL_URL" ]; then
+  echo "Cloudflare Tunnel URL: $TUNNEL_URL"
+  echo "VITE_TUNNEL_URL=$TUNNEL_URL" > "$PROJECT_DIR/frontend/.env.local"
+else
+  echo "WARNING: Could not retrieve Cloudflare Tunnel URL."
+  > "$PROJECT_DIR/frontend/.env.local"
+fi
+
 # Start frontend
 echo "Starting frontend on port 3000..."
 cd "$PROJECT_DIR/frontend"
@@ -88,8 +112,11 @@ FRONTEND_PID=$!
 echo ""
 echo "Backend:  http://localhost:5000"
 echo "Frontend: http://localhost:3000"
+if [ -n "$TUNNEL_URL" ]; then
+  echo "Public:   $TUNNEL_URL"
+fi
 echo ""
-echo "Press Ctrl+C to stop both."
+echo "Press Ctrl+C to stop servers and tunnel."
 
-trap "kill $BACKEND_PID $FRONTEND_PID 2>/dev/null; exit" INT TERM
+trap "kill $BACKEND_PID $FRONTEND_PID $TUNNEL_PID 2>/dev/null; exit" INT TERM
 wait

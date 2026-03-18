@@ -79,15 +79,16 @@ export const AICard: React.FC<AICardProps> = ({ model, prediction, loading, high
             <div>
               <div className="flex justify-between mb-1">
                 <span className="text-xs text-gray-500 font-mono uppercase">Confiance</span>
-                <span className={`font-mono text-sm font-black ${confidenceColor(prediction.confidence)}`}>
+                <span className={`font-mono text-sm font-black ${masked ? 'text-gray-400' : confidenceColor(prediction.confidence)}`}>
                   {prediction.confidence}%
                 </span>
               </div>
               <div className="w-full h-3 bg-gray-200 rounded-full border border-black overflow-hidden">
                 <div
-                  className={`h-full transition-all duration-500 rounded-full ${prediction.confidence >= 90 ? 'bg-green-500' :
-                    prediction.confidence >= 70 ? 'bg-yellow-400' :
-                      'bg-red-400'
+                  className={`h-full transition-all duration-500 rounded-full ${masked ? 'bg-gray-400' :
+                    prediction.confidence >= 90 ? 'bg-green-500' :
+                      prediction.confidence >= 70 ? 'bg-yellow-400' :
+                        'bg-red-400'
                     }`}
                   style={{ width: `${prediction.confidence}%` }}
                 />
