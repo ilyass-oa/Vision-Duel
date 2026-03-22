@@ -1,5 +1,6 @@
 export type ScreenStage =
   | 'WELCOME'
+  | 'INTRO_EXPLAINER'
   | 'LAB_TRAINER'
   | 'BRIEFING'
   | 'TEST_1_DUEL'

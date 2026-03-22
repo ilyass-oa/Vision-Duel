@@ -244,6 +244,7 @@ def serve_activity_image(filename):
 
 MODEL_A_DATA = os.path.join(PROJECT_ROOT, "resources", "dataset", "model_a_data")
 MODEL_B_DATA = os.path.join(PROJECT_ROOT, "resources", "dataset", "model_b_data")
+MODEL_A_RAW_TRAINING = os.path.join(PROJECT_ROOT, "resources", "dataset", "training_images", "model_a")
 
 
 @app.route("/static/training/<path:filename>")
@@ -251,18 +252,29 @@ def serve_training_image(filename):
     """Serve training images from model_a_data or model_b_data."""
     if filename.startswith("a/"):
         return send_from_directory(MODEL_A_DATA, filename[2:])
+    elif filename.startswith("a_raw/"):
+        return send_from_directory(MODEL_A_RAW_TRAINING, filename[6:])
     elif filename.startswith("b/"):
         return send_from_directory(MODEL_B_DATA, filename[2:])
     return jsonify({"error": "Invalid path"}), 404
 
 
-def sample_training_images(data_dir, prefix, count=8):
+def sample_training_images(data_dir, prefix, count=8, preferred_file=None):
     """Pick a few sample CHAT images."""
     samples = []
     cls_dir = os.path.join(data_dir, "CHAT")
     if os.path.exists(cls_dir):
         files = [f for f in os.listdir(cls_dir) if os.path.splitext(f)[1].lower() in VALID_EXT]
-        chosen = random.sample(files, min(count, len(files)))
+        chosen = []
+
+        if preferred_file and preferred_file in files:
+            chosen.append(preferred_file)
+
+        remaining = [fname for fname in files if fname not in chosen]
+        extra_count = min(max(count - len(chosen), 0), len(remaining))
+        if extra_count:
+            chosen.extend(random.sample(remaining, extra_count))
+
         for fname in chosen:
             samples.append({
                 "url": f"/static/training/{prefix}/CHAT/{fname}",
@@ -274,8 +286,14 @@ def sample_training_images(data_dir, prefix, count=8):
 @app.route("/api/training-samples")
 def training_samples():
     """Return sample training images for both models."""
+    model_a_samples = sample_training_images(MODEL_A_DATA, "a", count=3)
+    model_a_fixed = {
+        "url": "/static/training/a_raw/images (183).jpeg",
+        "label": "CHAT",
+    }
+
     return jsonify({
-        "model_a": sample_training_images(MODEL_A_DATA, "a", count=4),
+        "model_a": [model_a_fixed, *model_a_samples],
         "model_b": sample_training_images(MODEL_B_DATA, "b", count=4),
     })
 

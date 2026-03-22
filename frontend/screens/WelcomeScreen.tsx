@@ -40,6 +40,13 @@ export const WelcomeScreen: React.FC = () => {
                     <button onClick={() => switchTest('BONUS_MENU')} className="block mx-auto text-sm text-gray-400 hover:text-gray-700 font-mono underline transition-colors">
                         Aller directement aux bonus
                     </button>
+                    <Button
+                        variant="outline"
+                        onClick={() => switchTest('INTRO_EXPLAINER')}
+                        className="text-sm md:text-base px-6 py-3 w-full max-w-sm mx-auto"
+                    >
+                        Voir l'animation / explication
+                    </Button>
                 </div>
             </div>
             {tunnelUrl && (

@@ -3,6 +3,7 @@ import { AppProvider, useAppContext } from './context/AppContext';
 
 // Screens
 import { WelcomeScreen } from './screens/WelcomeScreen';
+import { IntroExplainerScreen } from './screens/IntroExplainerScreen';
 import { BriefingScreen } from './screens/BriefingScreen';
 import { Test1DuelScreen } from './screens/Test1DuelScreen';
 import { Result1Screen } from './screens/Result1Screen';
@@ -23,6 +24,7 @@ const MainRouter: React.FC = () => {
   const { stage, switchTest } = useAppContext();
 
   if (stage === 'WELCOME') return <WelcomeScreen />;
+  if (stage === 'INTRO_EXPLAINER') return <IntroExplainerScreen />;
   if (stage === 'BRIEFING') return <BriefingScreen />;
   if (stage === 'TEST_1_DUEL') return <Test1DuelScreen />;
   if (stage === 'RESULT_1') return <Result1Screen />;
