@@ -78,9 +78,9 @@ if defined TUNNEL_URL (
 )
 
 echo.
-echo Démarrage du Frontend...
+echo Construction et Démarrage du Frontend (Production Mode)...
 cd /d "%PROJECT_DIR%frontend" || exit /b
-start /B "Frontend" npm run dev
+start /B "Frontend" cmd /c "npm run build && npm run preview"
 
 echo.
 echo ====================================================

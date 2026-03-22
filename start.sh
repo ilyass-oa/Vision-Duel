@@ -102,9 +102,9 @@ else
 fi
 
 # Start frontend
-echo "Starting frontend on port 3000..."
+echo "Building and starting frontend on port 3000 (Production Mode)..."
 cd "$PROJECT_DIR/frontend"
-npm run dev &
+npm run build && npm run preview &
 FRONTEND_PID=$!
 
 echo ""

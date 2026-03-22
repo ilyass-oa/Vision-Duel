@@ -24,6 +24,25 @@ export default defineConfig({
       },
     },
   },
+  preview: {
+    port: 3000,
+    host: '0.0.0.0',
+    allowedHosts: true,
+    strictPort: true,
+    cors: true,
+    proxy: {
+      '/api/': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/static': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+        secure: false,
+      },
+    },
+  },
   plugins: [react()],
   resolve: {
     alias: {
