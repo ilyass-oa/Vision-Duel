@@ -67,11 +67,9 @@ if [ ! -f "$PROJECT_DIR/runs/model_a/best.pt" ] || [ ! -f "$PROJECT_DIR/runs/mod
   echo "Training complete."
 fi
 
-# Install frontend dependencies if needed
-if [ ! -d "$PROJECT_DIR/frontend/node_modules" ]; then
-  echo "Installing frontend dependencies..."
-  cd "$PROJECT_DIR/frontend" && npm install
-fi
+# Install frontend dependencies systematically
+echo "Checking frontend dependencies..."
+cd "$PROJECT_DIR/frontend" && npm install --no-audit --no-fund
 
 # Start backend
 echo "Starting backend on port 5000..."

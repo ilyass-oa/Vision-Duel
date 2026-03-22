@@ -6,7 +6,8 @@ import { QRCodeSVG } from 'qrcode.react';
 
 export const WelcomeScreen: React.FC = () => {
     const { switchTest } = useAppContext();
-    const tunnelUrl = (import.meta as any).env?.VITE_TUNNEL_URL;
+    // @ts-ignore
+    const tunnelUrl = import.meta.env.VITE_TUNNEL_URL;
 
     return (
         <div className="min-h-screen flex flex-col items-center justify-center p-4 md:p-8 text-center relative overflow-hidden">
