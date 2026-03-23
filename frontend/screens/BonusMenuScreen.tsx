@@ -26,8 +26,8 @@ export const BonusMenuScreen: React.FC = () => {
                             <Sparkles size={28} className="hidden md:block text-indigo-600" />
                             <h3 className="font-black text-base md:text-lg uppercase text-indigo-900">Bonus A</h3>
                         </div>
-                        <p className="font-bold text-sm md:text-base text-indigo-800 mb-1 md:mb-2">Dans la tête du modele</p>
-                        <p className="text-xs md:text-sm text-indigo-600 font-mono">Comment le modèle apprend-il ? 3 écrans, 30 secondes.</p>
+                        <p className="font-bold text-sm md:text-base text-indigo-800 mb-1 md:mb-2">Comment le modèle apprend vraiment</p>
+                        <p className="text-xs md:text-sm text-indigo-600 font-mono">Exemples, erreur, ajustement, verdict. Une version simple mais honnête.</p>
                     </button>
 
                     <button
@@ -39,8 +39,8 @@ export const BonusMenuScreen: React.FC = () => {
                             <BookOpen size={28} className="hidden md:block text-amber-600" />
                             <h3 className="font-black text-base md:text-lg uppercase text-amber-900">Bonus B</h3>
                         </div>
-                        <p className="font-bold text-sm md:text-base text-amber-800 mb-1 md:mb-2">Surapprentissage en 30 secondes</p>
-                        <p className="text-xs md:text-sm text-amber-600 font-mono">Apprendre parfaitement... ne veut pas dire généraliser.</p>
+                        <p className="font-bold text-sm md:text-base text-amber-800 mb-1 md:mb-2">Pourquoi un modèle “parfait” peut échouer</p>
+                        <p className="text-xs md:text-sm text-amber-600 font-mono">Comparer apprendre par cœur et tenir sur des images nouvelles.</p>
                     </button>
 
                     <button
@@ -53,7 +53,7 @@ export const BonusMenuScreen: React.FC = () => {
                             <h3 className="font-black text-base md:text-lg uppercase text-green-900">Bonus C</h3>
                         </div>
                         <p className="font-bold text-sm md:text-base text-green-800 mb-1 md:mb-2">Atelier de Réparation</p>
-                        <p className="text-xs md:text-sm text-green-600 font-mono">Diagnostiquez une panne IA et réparez-la avec de meilleures données.</p>
+                        <p className="text-xs md:text-sm text-green-600 font-mono">Diagnostiquer lumière, cadrage, flou ou faux ami, puis choisir le bon correctif.</p>
                     </button>
 
                     <button
