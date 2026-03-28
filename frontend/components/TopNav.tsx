@@ -39,7 +39,7 @@ export const TopNav: React.FC<TopNavProps> = ({ isLocked = false }) => {
                 disabled={!canClick('TEST_2_STRESS')}
                 className={getBtnClass('TEST_2_STRESS')}
             >
-                {completedTests.has('TEST_2_STRESS') ? '✓' : '🔲'} 2. Pixélisation
+                {completedTests.has('TEST_2_STRESS') ? '✓' : '🌫️'} 2. Flou
             </button>
             <button
                 onClick={() => canClick('TEST_3_UNCERTAINTY') && switchTest('TEST_3_UNCERTAINTY')}

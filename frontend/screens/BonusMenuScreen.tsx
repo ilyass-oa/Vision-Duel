@@ -10,8 +10,8 @@ export const BonusMenuScreen: React.FC = () => {
             <div className="absolute inset-0 bg-dot-pattern opacity-50 pointer-events-none"></div>
             <div className="max-w-3xl w-full bg-white rounded-lg border-2 md:border-4 border-black shadow-retro-lg p-6 md:p-10 text-center space-y-4 md:space-y-8 animate-fade-in z-10">
                 <div className="inline-flex items-center justify-center p-3 md:p-4 bg-purple-100 border-2 border-black rounded-full text-purple-700 mb-2 md:mb-4 shadow-retro-sm">
-                    <Brain size={36} className="md:hidden" />
-                    <Brain size={48} className="hidden md:block" />
+                    <Sparkles size={36} className="md:hidden" />
+                    <Sparkles size={48} className="hidden md:block" />
                 </div>
                 <h2 className="text-2xl md:text-3xl font-black uppercase tracking-tight">Petit plus pour les curieux</h2>
                 <p className="text-sm md:text-base text-gray-600 font-medium">Activités bonus pour aller plus loin.</p>
@@ -58,18 +58,15 @@ export const BonusMenuScreen: React.FC = () => {
 
                     <button
                         onClick={() => switchTest('LAB_TRAINER')}
-                        className="relative overflow-hidden bg-cyan-50 hover:bg-cyan-100 border-2 border-cyan-400 p-4 md:p-6 rounded-lg text-left transition-all hover:shadow-retro-sm group"
+                        className="bg-cyan-50 hover:bg-cyan-100 border-2 border-cyan-400 p-4 md:p-6 rounded-lg text-left transition-all hover:shadow-retro-sm group"
                     >
-                        <span className="absolute top-2 right-2 bg-indigo-900 text-white border border-indigo-200 rounded px-2 py-0.5 text-[10px] font-mono font-bold uppercase tracking-wide">
-                            Special
-                        </span>
                         <div className="flex items-center gap-2 md:gap-3 mb-2 md:mb-3">
                             <Brain size={24} className="md:hidden text-cyan-700" />
                             <Brain size={28} className="hidden md:block text-cyan-700" />
                             <h3 className="font-black text-base md:text-lg uppercase text-cyan-900">Bonus D</h3>
                         </div>
-                        <p className="font-bold text-sm md:text-base text-cyan-800 mb-1 md:mb-2">Entraîne ton IA</p>
-                        <p className="text-xs md:text-sm text-cyan-700 font-mono">4 images fixes au lancement, avec pourcentages IA visibles directement.</p>
+                        <p className="font-bold text-sm md:text-base text-cyan-800 mb-1 md:mb-2">Comprendre un réseau de vision, enfin</p>
+                        <p className="text-xs md:text-sm text-cyan-700 font-mono">Pixels, nombres, couches, poids et mini labo pour sentir l&apos;apprentissage.</p>
                     </button>
                 </div>
 

@@ -41,12 +41,12 @@ export const Result1Screen: React.FC = () => {
                         </p>
                         <p className="text-sm text-gray-800 leading-snug">
                             <strong className="text-brand-dark uppercase bg-brand-dark/10 px-2 py-1 rounded text-xs">À retenir</strong><br />
-                            Réussir sur images rapides = le modèle fonctionne si l'info est claire. La vraie question : que se passe-t-il si on pixélise ?
+                            Réussir sur images rapides = le modèle fonctionne si l'info est claire. La vraie question : que se passe-t-il si on floute l'image ?
                         </p>
                     </div>
 
                     <Button onClick={() => switchTest('TEST_2_STRESS')} className="w-full max-w-sm mx-auto text-xl py-4 mt-8">
-                        Passer à la Pixélisation <ArrowRight className="inline ml-2" />
+                        Passer au Flou <ArrowRight className="inline ml-2" />
                     </Button>
                 </div>
             </div>

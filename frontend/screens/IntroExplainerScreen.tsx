@@ -14,6 +14,7 @@ const SCENES = [
 ] as const;
 
 const TOTAL_DURATION = SCENES.reduce((sum, scene) => sum + scene.duration, 0);
+const LOOP_PAUSE_MS = 1800;
 
 const frameMotion = {
   initial: { opacity: 0, y: 18 },
@@ -578,14 +579,30 @@ export const IntroExplainerScreen: React.FC = () => {
     : SCENES.slice(0, currentScene).reduce((sum, scene) => sum + scene.duration, 0) + elapsedInScene;
   const progressPercent = Math.min(100, (completedDuration / TOTAL_DURATION) * 100);
 
-  const resetIntro = () => {
+  const restartTimeline = () => {
     setCurrentScene(0);
     setElapsedInScene(0);
+    setIsComplete(false);
+  };
+
+  const resetIntro = () => {
+    restartTimeline();
     setImageReady(false);
     setImageError(false);
-    setIsComplete(false);
     setRunKey((value) => value + 1);
   };
+
+  useEffect(() => {
+    if (!isComplete) return;
+
+    const timer = window.setTimeout(() => {
+      restartTimeline();
+    }, LOOP_PAUSE_MS);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [isComplete]);
 
   const renderScene = () => {
     if (imageError) {
@@ -657,7 +674,7 @@ export const IntroExplainerScreen: React.FC = () => {
 
       <div className="mt-4 flex justify-center">
         <div className="inline-flex items-center gap-2 rounded-full border-2 border-black bg-white px-4 py-2 font-mono text-xs font-bold uppercase tracking-[0.2em] shadow-retro-sm">
-          Intro optionnelle, environ 55 secondes
+          Intro en boucle, environ 55 secondes
         </div>
       </div>
     </IntroShell>

@@ -2,12 +2,9 @@ import React from 'react';
 import { Button } from '../components/Button';
 import { Eye, Cat, Swords } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
-import { QRCodeSVG } from 'qrcode.react';
 
 export const WelcomeScreen: React.FC = () => {
     const { switchTest } = useAppContext();
-    // @ts-ignore
-    const tunnelUrl = import.meta.env.VITE_TUNNEL_URL;
 
     return (
         <div className="min-h-screen flex flex-col items-center justify-center p-4 md:p-8 text-center relative overflow-hidden">
@@ -49,14 +46,6 @@ export const WelcomeScreen: React.FC = () => {
                     </Button>
                 </div>
             </div>
-            {tunnelUrl && (
-                <div className="fixed bottom-4 left-4 md:bottom-8 md:left-8 bg-white p-3 md:p-4 rounded-xl border-4 border-black shadow-retro-sm z-50 flex flex-col items-center animate-fade-in text-brand-dark">
-                    <p className="text-[10px] md:text-xs font-mono font-black uppercase mb-2 text-center leading-tight">
-                        Jouer sur <br /> mobile
-                    </p>
-                    <QRCodeSVG value={tunnelUrl} size={90} className="border-2 border-gray-200 rounded p-1" />
-                </div>
-            )}
         </div>
     );
 };

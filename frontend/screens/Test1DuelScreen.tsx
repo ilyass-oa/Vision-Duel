@@ -53,7 +53,7 @@ export const Test1DuelScreen: React.FC = () => {
 
         const timer = setTimeout(() => {
             setTest1Phase('ANSWERING');
-        }, 70);
+        }, 15)
         return () => clearTimeout(timer);
     }, [test1Phase, predA, isAnalyzing, test1Images, test1Index]);
 
@@ -127,7 +127,7 @@ export const Test1DuelScreen: React.FC = () => {
                                 </div>
                             )}
                             {currentImg && (
-                                <img src={currentImg.url} alt="Test" className={`w-full h-full object-contain transition-opacity duration-300 ${(test1Phase === 'FLASHING' || test1Phase === 'REVEALED') ? 'opacity-100' : 'opacity-0'}`} key={test1Index} />
+                                <img src={currentImg.url} alt="Test" className={`w-full h-full object-contain transition-none ${(test1Phase === 'FLASHING' || test1Phase === 'REVEALED') ? 'opacity-100' : 'opacity-0'}`} key={test1Index} />
                             )}
                         </div>
                     </div>

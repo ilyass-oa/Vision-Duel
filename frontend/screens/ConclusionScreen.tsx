@@ -53,7 +53,7 @@ export const ConclusionScreen: React.FC = () => {
                                     <td className="text-center font-bold text-brand-orange">{scoreB_T1}%</td>
                                 </tr>
                                 <tr className="border-b border-gray-200 bg-orange-50/40">
-                                    <td className="py-2 px-3">🔲 Pixélisation</td>
+                                    <td className="py-2 px-3">🌫️ Flou</td>
                                     <td className="text-center font-bold text-brand-blue">{scoreA_T2}%</td>
                                     <td className="text-center font-bold text-brand-orange">{scoreB_T2}%</td>
                                 </tr>
@@ -69,7 +69,7 @@ export const ConclusionScreen: React.FC = () => {
                     {/* Conclusion text */}
                     <div className="bg-amber-50 border-2 border-amber-300 rounded-lg p-3 shadow-retro-sm space-y-2">
                         <p className="text-sm text-gray-800 leading-snug">
-                            Tu as testé <strong className="bg-yellow-200 px-1">"chat / pas chat"</strong> avec deux IA. Résultat : une IA n'a pas d'intelligence générale. Elle apprend sur des exemples et calcule des scores. Si les images ressemblent à l'entraînement, elle est performante. Sinon (flash, pixélisation, faux amis), ses erreurs diffèrent de l'humain.
+                            Tu as testé <strong className="bg-yellow-200 px-1">"chat / pas chat"</strong> avec deux IA. Résultat : une IA n'a pas d'intelligence générale. Elle apprend sur des exemples et calcule des scores. Si les images ressemblent à l'entraînement, elle est performante. Sinon (flash, flou, faux amis), ses erreurs diffèrent de l'humain.
                         </p>
                         <p className="text-sm text-gray-800 leading-snug font-bold bg-brand-dark/10 p-3 rounded border-l-4 border-brand-dark">
                             La qualité dépend des données et conditions d'usage. Un bon modèle reste <strong>stable</strong> quand la qualité baisse et gère les cas ambigus.
@@ -86,7 +86,7 @@ export const ConclusionScreen: React.FC = () => {
                         <div className="bg-orange-50 border-2 border-orange-300 rounded-lg p-4 shadow-retro-sm hover:shadow-retro hover:-translate-y-0.5 transition-all">
                             <div className="w-8 h-8 bg-brand-orange text-white border-2 border-black flex items-center justify-center font-black text-sm mb-3 rounded">2</div>
                             <h4 className="font-black text-sm uppercase mb-2 text-orange-900">La fiabilité se teste</h4>
-                            <p className="text-xs text-orange-800 font-mono leading-snug">Teste quand l'info baisse (flash, pixélisation, faux amis), pas que sur images faciles.</p>
+                            <p className="text-xs text-orange-800 font-mono leading-snug">Teste quand l'info baisse (flash, flou, faux amis), pas que sur images faciles.</p>
                         </div>
                         <div className="bg-yellow-50 border-2 border-yellow-400 rounded-lg p-4 shadow-retro-sm hover:shadow-retro hover:-translate-y-0.5 transition-all">
                             <div className="w-8 h-8 bg-yellow-400 text-black border-2 border-black flex items-center justify-center font-black text-sm mb-3 rounded">3</div>

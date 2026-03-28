@@ -8,6 +8,22 @@ type BonusCFailure = 'DARK' | 'CROP' | 'BLUR' | 'FAUX_AMI';
 type BonusCDiagnosis = 'LIGHT' | 'CROP' | 'BLUR' | 'LOOKALIKE';
 type BonusCKit = 'KIT_LIGHT' | 'KIT_CROP' | 'KIT_BLUR' | 'KIT_LOOKALIKE';
 
+type BonusCCaseDefinition = {
+    label: string;
+    desc: string;
+    image: ActivityImage;
+    imageStyle?: React.CSSProperties;
+    imageClassName?: string;
+    hintLabel: string;
+    hintClassName: string;
+    currentPrediction: string;
+    correctDiagnosis: BonusCDiagnosis;
+    correctKit: BonusCKit;
+    successMessage: string;
+    correctedLabel: string;
+    explanation: string;
+};
+
 const DIAGNOSIS_LABELS: Record<BonusCDiagnosis, string> = {
     LIGHT: 'Manque de lumière',
     CROP: 'Mauvais cadrage',
@@ -23,7 +39,7 @@ const KIT_LABELS: Record<BonusCKit, string> = {
 };
 
 export const BonusCScreens: React.FC = () => {
-    const { stage, switchTest, allImages } = useAppContext();
+    const { stage, switchTest, allImages, test3Images } = useAppContext();
 
     const [bonusCFailure, setBonusCFailure] = useState<BonusCFailure | null>(null);
     const [bonusCDiagnosis, setBonusCDiagnosis] = useState<BonusCDiagnosis | null>(null);
@@ -43,30 +59,21 @@ export const BonusCScreens: React.FC = () => {
             dark: chatImages[0],
             crop: chatImages[1] || chatImages[0],
             blur: chatImages[2] || chatImages[0],
-            fauxAmi: pasChatImages[0],
+            fauxAmi: test3Images[0] || pasChatImages[0],
         };
     };
 
     const candidates = getBonusCImages();
     const fallbackImage: ActivityImage = { id: 'fallback', url: '', truth: 'CHAT' };
 
-    const cases: Record<BonusCFailure, {
-        label: string;
-        desc: string;
-        image: ActivityImage;
-        imageStyle?: React.CSSProperties;
-        currentPrediction: string;
-        correctDiagnosis: BonusCDiagnosis;
-        correctKit: BonusCKit;
-        successMessage: string;
-        correctedLabel: string;
-        explanation: string;
-    }> = {
+    const cases: Record<BonusCFailure, BonusCCaseDefinition> = {
         DARK: {
             label: 'Panne #1',
             desc: 'La scène est trop sombre.',
             image: candidates.dark || fallbackImage,
-            imageStyle: { filter: 'brightness(0.35)' },
+            imageStyle: { filter: 'brightness(0.16) contrast(1.25) saturate(0.7)' },
+            hintLabel: 'Lumiere presque perdue',
+            hintClassName: 'bg-yellow-200 text-yellow-950',
             currentPrediction: 'PAS CHAT (30%)',
             correctDiagnosis: 'LIGHT',
             correctKit: 'KIT_LIGHT',
@@ -78,7 +85,10 @@ export const BonusCScreens: React.FC = () => {
             label: 'Panne #2',
             desc: 'Le chat est trop recadré.',
             image: candidates.crop || fallbackImage,
-            imageStyle: { transform: 'scale(1.55)' },
+            imageClassName: 'object-cover',
+            imageStyle: { transform: 'scale(2.4) translate(16%, 8%)', transformOrigin: 'center center' },
+            hintLabel: 'Une partie utile est coupee',
+            hintClassName: 'bg-blue-200 text-blue-950',
             currentPrediction: 'PAS CHAT (42%)',
             correctDiagnosis: 'CROP',
             correctKit: 'KIT_CROP',
@@ -90,7 +100,9 @@ export const BonusCScreens: React.FC = () => {
             label: 'Panne #3',
             desc: 'L’image est floue.',
             image: candidates.blur || fallbackImage,
-            imageStyle: { filter: 'blur(6px)' },
+            imageStyle: { filter: 'blur(11px) contrast(0.92) saturate(0.82)' },
+            hintLabel: 'Les details disparaissent',
+            hintClassName: 'bg-gray-200 text-gray-900',
             currentPrediction: 'PAS CHAT (38%)',
             correctDiagnosis: 'BLUR',
             correctKit: 'KIT_BLUR',
@@ -100,8 +112,11 @@ export const BonusCScreens: React.FC = () => {
         },
         FAUX_AMI: {
             label: 'Panne #4',
-            desc: 'Un faux ami ressemble à un chat.',
+            desc: 'Un faux ami du dossier LookAlike ressemble à un chat.',
             image: candidates.fauxAmi || fallbackImage,
+            imageStyle: { filter: 'contrast(1.12) saturate(1.06)' },
+            hintLabel: 'Image du dossier LookAlike',
+            hintClassName: 'bg-red-200 text-red-950',
             currentPrediction: 'CHAT (95%)',
             correctDiagnosis: 'LOOKALIKE',
             correctKit: 'KIT_LOOKALIKE',
@@ -110,6 +125,33 @@ export const BonusCScreens: React.FC = () => {
             explanation: 'Le problème n’était ni la lumière ni le flou: l’objet se ressemblait trop à un chat.',
         },
     };
+
+    const CaseImagePreview: React.FC<{
+        currentCase: BonusCCaseDefinition;
+        className?: string;
+        statusLabel?: string;
+        statusClassName?: string;
+    }> = ({ currentCase, className = '', statusLabel, statusClassName = 'bg-red-600 text-white' }) => (
+        <div className={`relative aspect-square overflow-hidden bg-white ${className}`}>
+            {currentCase.image.url && (
+                <img
+                    src={currentCase.image.url}
+                    alt={currentCase.label}
+                    className={`w-full h-full ${currentCase.imageClassName || 'object-contain'}`}
+                    style={currentCase.imageStyle}
+                />
+            )}
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_48%,rgba(0,0,0,0.16))]" />
+            <div className={`absolute left-2 top-2 border border-black px-2 py-1 font-mono text-[10px] font-bold uppercase shadow-retro-sm ${currentCase.hintClassName}`}>
+                {currentCase.hintLabel}
+            </div>
+            {statusLabel && (
+                <div className={`absolute bottom-0 left-0 right-0 font-mono text-xs font-bold py-1 text-center ${statusClassName}`}>
+                    {statusLabel}
+                </div>
+            )}
+        </div>
+    );
 
     const activeCase = bonusCFailure ? cases[bonusCFailure] : null;
 
@@ -170,13 +212,7 @@ export const BonusCScreens: React.FC = () => {
                             return (
                                 <div key={caseId} className="bg-white border-4 border-black shadow-retro rounded-lg overflow-hidden flex flex-col">
                                     <div className="h-56 bg-gray-100 relative border-b-2 border-black overflow-hidden group">
-                                        {currentCase.image.url && (
-                                            <img
-                                                src={currentCase.image.url}
-                                                className="w-full h-full object-contain transition-transform duration-700 group-hover:scale-105"
-                                                style={currentCase.imageStyle}
-                                            />
-                                        )}
+                                        <CaseImagePreview currentCase={currentCase} className="h-full w-full group-hover:scale-[1.02] transition-transform duration-500" />
                                         <div className="absolute top-2 right-2 bg-red-600 text-white font-black px-2 py-0.5 text-xs uppercase border border-black shadow-sm transform rotate-3">Erreur</div>
                                     </div>
 
@@ -222,8 +258,8 @@ export const BonusCScreens: React.FC = () => {
                 <div className="absolute inset-0 bg-dot-pattern opacity-50 pointer-events-none"></div>
                 <div className="max-w-4xl w-full bg-white rounded-lg border-4 border-black shadow-retro-lg overflow-hidden flex flex-col md:flex-row z-10">
                     <div className="flex-1 bg-gray-100 border-b-4 md:border-b-0 md:border-r-4 border-black relative p-8 flex items-center justify-center min-h-[300px]">
-                        <div className="relative w-64 h-64 border-4 border-black shadow-retro overflow-hidden bg-white">
-                            {activeCase.image.url && <img src={activeCase.image.url} className="w-full h-full object-contain" style={activeCase.imageStyle} />}
+                        <div className="w-64 h-64 border-4 border-black shadow-retro overflow-hidden bg-white">
+                            <CaseImagePreview currentCase={activeCase} className="h-full w-full" />
                         </div>
                         <div className="absolute top-4 left-4 bg-white border-2 border-black px-3 py-1 font-mono text-sm font-bold shadow-retro-sm">{activeCase.label}</div>
                     </div>
@@ -317,8 +353,7 @@ export const BonusCScreens: React.FC = () => {
                         <div className="flex-1 text-center opacity-50 grayscale">
                             <h3 className="font-mono font-bold uppercase mb-2 text-gray-500">Avant</h3>
                             <div className="relative aspect-square bg-gray-100 border-2 border-black rounded overflow-hidden mb-2">
-                                {activeCase.image.url && <img src={activeCase.image.url} className="w-full h-full object-contain" style={activeCase.imageStyle} />}
-                                <div className="absolute bottom-0 left-0 right-0 bg-red-600 text-white font-mono text-xs font-bold py-1">ERREUR</div>
+                                <CaseImagePreview currentCase={activeCase} className="h-full w-full" statusLabel="ERREUR" />
                             </div>
                         </div>
 
@@ -329,10 +364,12 @@ export const BonusCScreens: React.FC = () => {
                         <div className={`flex-1 text-center transform scale-110 transition-all ${success ? '' : 'opacity-50'}`}>
                             <h3 className="font-mono font-bold uppercase mb-2 text-brand-dark">Après</h3>
                             <div className={`relative aspect-square bg-gray-100 border-4 ${success ? 'border-green-500' : 'border-red-400'} rounded overflow-hidden mb-2 shadow-lg`}>
-                                {activeCase.image.url && <img src={activeCase.image.url} className="w-full h-full object-contain" style={activeCase.imageStyle} />}
-                                <div className={`absolute bottom-0 left-0 right-0 ${success ? 'bg-green-600' : 'bg-red-600'} text-white font-mono text-xs font-bold py-1`}>
-                                    {success ? activeCase.correctedLabel : 'ERREUR'}
-                                </div>
+                                <CaseImagePreview
+                                    currentCase={activeCase}
+                                    className="h-full w-full"
+                                    statusLabel={success ? activeCase.correctedLabel : 'ERREUR'}
+                                    statusClassName={success ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}
+                                />
                             </div>
                         </div>
                     </div>

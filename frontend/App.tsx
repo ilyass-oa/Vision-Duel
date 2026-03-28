@@ -1,4 +1,5 @@
 import React from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 import { AppProvider, useAppContext } from './context/AppContext';
 
 // Screens
@@ -47,10 +48,33 @@ const MainRouter: React.FC = () => {
   return <div className="min-h-screen flex items-center justify-center text-2xl font-mono text-red-500">Erreur : etape inconnue ({stage})</div>;
 };
 
+const GlobalQrCode: React.FC = () => {
+  // @ts-ignore
+  const tunnelUrl = import.meta.env.VITE_TUNNEL_URL;
+  const hostname = window.location.hostname;
+  const isLocalHost =
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname === '0.0.0.0' ||
+    hostname === '::1';
+
+  if (!tunnelUrl || !isLocalHost) return null;
+
+  return (
+    <div className="fixed bottom-4 left-4 md:bottom-8 md:left-8 bg-white p-3 md:p-4 rounded-xl border-4 border-black shadow-retro-sm z-50 flex flex-col items-center animate-fade-in text-brand-dark">
+      <p className="text-[10px] md:text-xs font-mono font-black uppercase mb-2 text-center leading-tight">
+        Jouer sur <br /> mobile
+      </p>
+      <QRCodeSVG value={tunnelUrl} size={90} className="border-2 border-gray-200 rounded p-1" />
+    </div>
+  );
+};
+
 const App: React.FC = () => {
   return (
     <AppProvider>
       <MainRouter />
+      <GlobalQrCode />
     </AppProvider>
   );
 };

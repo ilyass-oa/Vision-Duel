@@ -365,7 +365,7 @@ def transform_and_predict():
     if transforms:
         for t in transforms:
             if t == "blur":
-                pil_img = pil_img.filter(ImageFilter.GaussianBlur(radius=5))
+                pil_img = pil_img.filter(ImageFilter.GaussianBlur(radius=12))
             elif t == "darken":
                 from PIL import ImageEnhance
                 pil_img = ImageEnhance.Brightness(pil_img).enhance(0.3)

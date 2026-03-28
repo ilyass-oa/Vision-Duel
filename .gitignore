@@ -18,9 +18,8 @@ Thumbs.db
 .env
 *.log
 
-# Generated dataset outputs (local artifacts)
-resources/dataset/model_a_data/
-resources/dataset/model_b_data/
+# Local resources and datasets
+resources/
 
 # Local demo artifacts
 vision-duel-qr.png
